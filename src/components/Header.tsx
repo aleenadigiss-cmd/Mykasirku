@@ -10,6 +10,8 @@ import {
   LogOut,
   RotateCcw,
   Sparkles,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { usePos } from '../context/PosContext';
 
@@ -28,6 +30,8 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
     setActiveTab,
     transactions,
     resetDemoData,
+    sidebarCollapsed,
+    toggleSidebar,
   } = usePos();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -63,6 +67,15 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
           aria-label="Buka Menu"
         >
           <Menu className="w-5 h-5" />
+        </button>
+
+        {/* Desktop Sidebar Toggle (Slide / Geser) */}
+        <button
+          onClick={toggleSidebar}
+          className="hidden md:flex p-2 text-[#5d5e6c] hover:text-[#684cb6] hover:bg-[#f4f2fe] rounded-xl transition-colors cursor-pointer"
+          title={sidebarCollapsed ? 'Perluas Sidebar (Geser Keluar)' : 'Kecilkan Sidebar (Geser Masuk untuk layar penuh)'}
+        >
+          {sidebarCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
         </button>
 
         <div className="relative w-full max-w-md">

@@ -8,18 +8,34 @@ import {
   BarChart3,
   Settings,
   FolderTree,
-  Coins,
   X,
+  ChevronLeft,
+  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { usePos, ActiveNavTab } from '../context/PosContext';
 
 interface SidebarProps {
-  mobileOpen?: boolean;
+  isMobileOpen?: boolean;
   onCloseMobile?: () => void;
+  onOpenRegisterModal?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) => {
-  const { activeTab, setActiveTab, setShowOpenRegisterModal, isRegisterOpen, cartItemCount } = usePos();
+export const Sidebar: React.FC<SidebarProps> = ({
+  isMobileOpen,
+  onCloseMobile,
+  onOpenRegisterModal,
+}) => {
+  const {
+    activeTab,
+    setActiveTab,
+    setShowOpenRegisterModal,
+    isRegisterOpen,
+    cartItemCount,
+    sidebarCollapsed,
+    toggleSidebar,
+  } = usePos();
 
   const navItems: { id: ActiveNavTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     {
@@ -29,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
     },
     {
       id: 'kasir',
-      label: 'Kasir',
+      label: 'Kasir (POS)',
       icon: <Store className="w-5 h-5" />,
       badge: cartItemCount > 0 ? cartItemCount : undefined,
     },
@@ -70,33 +86,67 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
     if (onCloseMobile) onCloseMobile();
   };
 
-  const navContent = (
-    <div className="flex flex-col h-full bg-white border-r border-[#e2e1f2] shadow-sm select-none">
+  const renderNavContent = (isCollapsed: boolean) => (
+    <div className="flex flex-col h-full bg-white border-r border-[#e2e1f2] select-none">
       {/* Brand Header */}
-      <div className="p-6 border-b border-[#e2e1f2]/60 flex items-center justify-between">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2">
-            <span className="font-extrabold text-2xl tracking-tight text-[#684cb6] font-['Geist',sans-serif]">
-              KASIRKU
-            </span>
+      <div
+        className={`border-b border-[#e2e1f2]/60 flex items-center transition-all ${
+          isCollapsed
+            ? 'p-3 flex-col gap-2 justify-center'
+            : 'px-5 py-4 justify-between'
+        }`}
+      >
+        {isCollapsed ? (
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-9 h-9 rounded-xl bg-[#684cb6] text-white flex items-center justify-center font-black text-lg shadow-xs">
+              K
+            </div>
+            <button
+              onClick={toggleSidebar}
+              title="Perluas Menu Sidebar (Geser Keluar)"
+              className="p-1.5 rounded-lg text-[#5d5e6c] hover:text-[#684cb6] hover:bg-[#f4f2fe] transition-colors cursor-pointer mt-1"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
-          <span className="text-xs font-semibold text-[#5d5e6c] tracking-wider uppercase mt-0.5">
-            Point of Sale
-          </span>
-        </div>
-        {mobileOpen && (
-          <button
-            onClick={onCloseMobile}
-            className="p-1 rounded-lg text-[#5d5e6c] hover:bg-[#f4f2fe] md:hidden"
-            aria-label="Close menu"
-          >
-            <X className="w-5 h-5" />
-          </button>
+        ) : (
+          <>
+            <div className="flex flex-col">
+              <span className="font-extrabold text-2xl tracking-tight text-[#684cb6] font-['Geist',sans-serif]">
+                KASIRKU
+              </span>
+              <span className="text-[11px] font-semibold text-[#5d5e6c] tracking-wider uppercase">
+                Point of Sale
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1">
+              {/* Desktop Slide Collapse Button */}
+              <button
+                onClick={toggleSidebar}
+                title="Sembunyikan / Kecilkan Sidebar (Geser ke Kiri)"
+                className="hidden md:flex p-1.5 rounded-lg text-[#5d5e6c] hover:text-[#684cb6] hover:bg-[#f4f2fe] transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+
+              {/* Mobile Close Button */}
+              {isMobileOpen && (
+                <button
+                  onClick={onCloseMobile}
+                  className="p-1 rounded-lg text-[#5d5e6c] hover:bg-[#f4f2fe] md:hidden cursor-pointer"
+                  aria-label="Close menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          </>
         )}
       </div>
 
       {/* Nav Links */}
-      <div className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
+      <div className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
           return (
@@ -104,24 +154,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
               key={item.id}
               id={`nav-${item.id}`}
               onClick={() => handleNavClick(item.id)}
-              className={`w-full flex items-center gap-3.5 px-4 py-3 text-sm rounded-r-full font-medium transition-all duration-150 relative ${
+              title={isCollapsed ? item.label : undefined}
+              className={`w-full flex items-center rounded-xl text-sm font-medium transition-all duration-150 relative group cursor-pointer ${
+                isCollapsed
+                  ? 'justify-center p-2.5'
+                  : 'gap-3 px-3.5 py-2.5'
+              } ${
                 isActive
-                  ? 'border-l-4 border-[#684cb6] bg-[#a589f8] text-[#230062] font-bold shadow-sm'
+                  ? 'bg-[#684cb6] text-white font-bold shadow-xs'
                   : 'text-[#5d5e6c] hover:bg-[#f4f2fe] hover:text-[#30323e]'
               }`}
             >
-              <span className={`shrink-0 ${isActive ? 'text-[#230062]' : 'text-[#797988]'}`}>
+              <span className={`shrink-0 ${isActive ? 'text-white' : 'text-[#797988] group-hover:text-[#684cb6]'}`}>
                 {item.icon}
               </span>
-              <span className="truncate">{item.label}</span>
-              {item.badge !== undefined && (
-                <span
-                  className={`ml-auto text-xs px-2 py-0.5 rounded-full font-bold ${
-                    isActive ? 'bg-[#230062] text-white' : 'bg-[#684cb6] text-white'
-                  }`}
-                >
-                  {item.badge}
-                </span>
+
+              {!isCollapsed && (
+                <>
+                  <span className="truncate flex-1 text-left">{item.label}</span>
+                  {item.badge !== undefined && (
+                    <span
+                      className={`ml-auto text-[11px] px-2 py-0.5 rounded-full font-bold ${
+                        isActive ? 'bg-white text-[#684cb6]' : 'bg-[#684cb6] text-white'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </>
+              )}
+
+              {/* Dot badge indicator when collapsed */}
+              {isCollapsed && item.badge !== undefined && (
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-[#e11d48] border-2 border-white" />
               )}
             </button>
           );
@@ -129,27 +194,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
       </div>
 
       {/* Bottom Action Button */}
-      <div className="p-5 border-t border-[#e2e1f2]">
-        <div className="mb-2.5 flex items-center justify-between text-xs text-[#5d5e6c] px-1">
-          <span>Status Kasir:</span>
-          <span className="inline-flex items-center gap-1.5 font-semibold text-[#006d4b]">
-            <span className="w-2 h-2 rounded-full bg-[#006d4b] animate-pulse"></span>
-            {isRegisterOpen ? 'Register Terbuka' : 'Tutup'}
-          </span>
-        </div>
+      <div className={`border-t border-[#e2e1f2] ${isCollapsed ? 'p-2' : 'p-4'}`}>
+        {!isCollapsed && (
+          <div className="mb-2.5 flex items-center justify-between text-xs text-[#5d5e6c] px-1">
+            <span>Status Kasir:</span>
+            <span className="inline-flex items-center gap-1.5 font-semibold text-[#006d4b]">
+              <span className="w-2 h-2 rounded-full bg-[#006d4b] animate-pulse" />
+              {isRegisterOpen ? 'Terbuka' : 'Tutup'}
+            </span>
+          </div>
+        )}
         <button
           id="btn-buka-kasir"
           onClick={() => {
             setActiveTab('kasir');
             if (!isRegisterOpen) {
-              setShowOpenRegisterModal(true);
+              if (onOpenRegisterModal) onOpenRegisterModal();
+              else setShowOpenRegisterModal(true);
             }
             if (onCloseMobile) onCloseMobile();
           }}
-          className="w-full bg-[#684cb6] hover:bg-[#5b3fa9] active:scale-[0.98] text-[#fdf7ff] font-semibold text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+          title="Buka Layar Kasir"
+          className={`w-full bg-[#684cb6] hover:bg-[#5b3fa9] active:scale-[0.98] text-[#fdf7ff] font-semibold rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-xs ${
+            isCollapsed ? 'p-2.5' : 'py-2.5 px-4 text-xs gap-2'
+          }`}
         >
-          <Store className="w-4 h-4" />
-          <span>Buka Kasir</span>
+          <Store className="w-4 h-4 shrink-0" />
+          {!isCollapsed && <span>Buka Kasir</span>}
         </button>
       </div>
     </div>
@@ -157,20 +228,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
 
   return (
     <>
-      {/* Desktop Sidebar (Fixed) */}
-      <aside className="hidden md:block w-[280px] h-screen fixed left-0 top-0 z-40">
-        {navContent}
+      {/* Desktop Sidebar (Flex Item - Not fixed, so it never overlaps content!) */}
+      <aside
+        className={`hidden md:flex flex-col h-full shrink-0 transition-all duration-300 z-20 ${
+          sidebarCollapsed ? 'w-[72px]' : 'w-[250px]'
+        }`}
+      >
+        {renderNavContent(sidebarCollapsed)}
       </aside>
 
       {/* Mobile Drawer */}
-      {mobileOpen && (
+      {isMobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden flex">
           <div
             className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
             onClick={onCloseMobile}
           />
-          <div className="relative w-[280px] max-w-[85vw] h-full z-10 animate-in slide-in-from-left duration-200">
-            {navContent}
+          <div className="relative w-[280px] max-w-[85vw] h-full z-10 animate-in slide-in-from-left duration-200 shadow-2xl">
+            {renderNavContent(false)}
           </div>
         </div>
       )}

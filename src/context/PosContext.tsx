@@ -33,6 +33,9 @@ interface PosContextType {
   setActiveTab: (tab: ActiveNavTab) => void;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean | ((prev: boolean) => boolean)) => void;
+  toggleSidebar: () => void;
 
   // Products
   products: Product[];
@@ -101,6 +104,8 @@ const PosContext = createContext<PosContextType | undefined>(undefined);
 export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<ActiveNavTab>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const toggleSidebar = () => setSidebarCollapsed((prev) => !prev);
 
   // Initial local state with localStorage caching
   const [products, setProducts] = useState<Product[]>(() => {
@@ -421,6 +426,9 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveTab,
         searchQuery,
         setSearchQuery,
+        sidebarCollapsed,
+        setSidebarCollapsed,
+        toggleSidebar,
         products,
         addProduct,
         updateProduct,

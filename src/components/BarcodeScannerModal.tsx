@@ -82,47 +82,82 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const scanLockRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const isMountedRef = useRef<boolean>(true);
+
+  // Keep latest mutable props in ref so callbacks don't recreate and trigger camera restarts
+  const stateRef = useRef({
+    products,
+    cart,
+    addToCart,
+    soundEnabled,
+    continuousMode,
+    onClose,
+  });
+
+  useEffect(() => {
+    stateRef.current = {
+      products,
+      cart,
+      addToCart,
+      soundEnabled,
+      continuousMode,
+      onClose,
+    };
+  });
 
   // Handle scanned barcode text
-  const handleBarcodeDecoded = useCallback(
-    (decodedText: string) => {
-      const code = decodedText.trim();
-      if (!code) return;
+  const handleBarcodeDecoded = useCallback((decodedText: string) => {
+    const code = decodedText.trim();
+    if (!code) return;
 
-      // Prevent duplicate instant fire within cooldown
-      if (scanLockRef.current) return;
-      scanLockRef.current = true;
+    // Prevent duplicate instant fire within cooldown
+    if (scanLockRef.current) return;
+    scanLockRef.current = true;
 
-      // Find matching product by exact SKU or ID (case-insensitive)
-      const matched = products.find(
-        (p) =>
-          p.sku.toLowerCase() === code.toLowerCase() ||
-          String(p.id).toLowerCase() === code.toLowerCase() ||
-          p.name.toLowerCase() === code.toLowerCase()
-      );
+    const {
+      products: currentProducts,
+      cart: currentCart,
+      addToCart: currentAddToCart,
+      soundEnabled: isSoundOn,
+      continuousMode: isContinuous,
+      onClose: closeFn,
+    } = stateRef.current;
 
-      if (matched) {
-        if (matched.stock <= 0) {
-          if (soundEnabled) playScanSound(false);
+    // Find matching product by exact SKU or ID (case-insensitive)
+    const matched = currentProducts.find(
+      (p) =>
+        p.sku.toLowerCase() === code.toLowerCase() ||
+        String(p.id).toLowerCase() === code.toLowerCase() ||
+        p.name.toLowerCase() === code.toLowerCase()
+    );
+
+    if (matched) {
+      if (matched.stock <= 0) {
+        if (isSoundOn) playScanSound(false);
+        if (isMountedRef.current) {
           setLastScannedMessage({
             type: 'warning',
             text: `Stok ${matched.name} (${matched.sku}) Habis!`,
             product: matched,
           });
-        } else {
-          // Check if cart has reached stock limit
-          const inCart = cart.find((ci) => ci.product.id === matched.id);
-          if (inCart && inCart.quantity >= matched.stock) {
-            if (soundEnabled) playScanSound(false);
+        }
+      } else {
+        // Check if cart has reached stock limit
+        const inCart = currentCart.find((ci) => ci.product.id === matched.id);
+        if (inCart && inCart.quantity >= matched.stock) {
+          if (isSoundOn) playScanSound(false);
+          if (isMountedRef.current) {
             setLastScannedMessage({
               type: 'warning',
               text: `Maksimal stok tercapai (${matched.stock} unit).`,
               product: matched,
             });
-          } else {
-            // Success
-            addToCart(matched);
-            if (soundEnabled) playScanSound(true);
+          }
+        } else {
+          // Success
+          currentAddToCart(matched);
+          if (isSoundOn) playScanSound(true);
+          if (isMountedRef.current) {
             setLastScannedMessage({
               type: 'success',
               text: `Berhasil menambahkan: ${matched.name}`,
@@ -149,34 +184,36 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                 return [{ product: matched, time: nowTime, count: 1 }, ...prev.slice(0, 4)];
               }
             });
+          }
 
-            if (!continuousMode) {
-              // Close after single scan
-              setTimeout(() => {
-                onClose();
-              }, 800);
-            }
+          if (!isContinuous) {
+            // Close after single scan
+            setTimeout(() => {
+              closeFn();
+            }, 800);
           }
         }
-      } else {
-        if (soundEnabled) playScanSound(false);
+      }
+    } else {
+      if (isSoundOn) playScanSound(false);
+      if (isMountedRef.current) {
         setLastScannedMessage({
           type: 'error',
           text: `Kode "${code}" tidak ditemukan dalam katalog produk!`,
         });
       }
+    }
 
-      // Unlock after 1.5 seconds cooldown to prevent rapid multi-triggers on continuous camera frame
-      setTimeout(() => {
-        scanLockRef.current = false;
-      }, 1500);
-    },
-    [products, cart, addToCart, soundEnabled, continuousMode, onClose]
-  );
+    // Unlock after 1.5 seconds cooldown to prevent rapid multi-triggers on continuous camera frame
+    setTimeout(() => {
+      scanLockRef.current = false;
+    }, 1500);
+  }, []);
 
   // Initialize and start camera
   const startCamera = useCallback(
     async (cameraId?: string) => {
+      if (!isMountedRef.current) return;
       setCameraError(null);
       const readerElement = document.getElementById('barcode-reader');
       if (!readerElement) return;
@@ -184,7 +221,10 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
       try {
         if (html5QrCodeRef.current) {
           try {
-            await html5QrCodeRef.current.stop();
+            if (html5QrCodeRef.current.isScanning) {
+              await html5QrCodeRef.current.stop();
+            }
+            html5QrCodeRef.current.clear();
           } catch {
             // ignored
           }
@@ -212,11 +252,15 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
         // Get cameras if not loaded
         const devices = await Html5Qrcode.getCameras();
         if (devices && devices.length > 0) {
-          setAvailableCameras(
-            devices.map((d) => ({ id: d.id, label: d.label || `Kamera ${d.id.slice(0, 4)}` }))
-          );
-          const targetCameraId = cameraId || selectedCameraId || devices[devices.length - 1].id; // Back camera is usually last
-          setSelectedCameraId(targetCameraId);
+          if (isMountedRef.current) {
+            setAvailableCameras(
+              devices.map((d) => ({ id: d.id, label: d.label || `Kamera ${d.id.slice(0, 4)}` }))
+            );
+          }
+          const targetCameraId = cameraId || selectedCameraId || devices[devices.length - 1].id;
+          if (isMountedRef.current) {
+            setSelectedCameraId(targetCameraId);
+          }
 
           const config = {
             fps: 15,
@@ -224,7 +268,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
               const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
               return {
                 width: Math.floor(minEdge * 0.8),
-                height: Math.floor(minEdge * 0.55), // Rectangle suitable for 1D Barcodes and QR
+                height: Math.floor(minEdge * 0.55),
               };
             },
             aspectRatio: 1.333333,
@@ -237,22 +281,28 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
               handleBarcodeDecoded(decodedText);
             },
             () => {
-              // Ignore frame decode fails
+              // Frame decode tick
             }
           );
-          setIsScanning(true);
+          if (isMountedRef.current) {
+            setIsScanning(true);
+          }
         } else {
-          setCameraError('Tidak ada perangkat kamera yang terdeteksi pada perangkat ini.');
+          if (isMountedRef.current) {
+            setCameraError('Tidak ada perangkat kamera yang terdeteksi pada perangkat ini.');
+          }
         }
       } catch (err: unknown) {
         console.error('Camera start error:', err);
         const errMsg = err instanceof Error ? err.message : String(err);
-        if (errMsg.includes('Permission') || errMsg.includes('NotAllowedError')) {
-          setCameraError('Izin akses kamera ditolak. Berikan izin kamera pada browser untuk menggunakan pemindai.');
-        } else {
-          setCameraError(`Gagal memulai kamera: ${errMsg}`);
+        if (isMountedRef.current) {
+          if (errMsg.includes('Permission') || errMsg.includes('NotAllowedError')) {
+            setCameraError('Izin akses kamera ditolak. Berikan izin kamera pada browser untuk menggunakan pemindai.');
+          } else {
+            setCameraError(`Gagal memulai kamera: ${errMsg}`);
+          }
+          setIsScanning(false);
         }
-        setIsScanning(false);
       }
     },
     [selectedCameraId, handleBarcodeDecoded]
@@ -271,14 +321,15 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
       }
       html5QrCodeRef.current = null;
     }
-    setIsScanning(false);
+    if (isMountedRef.current) {
+      setIsScanning(false);
+    }
   }, []);
 
   // Handle Torch / Flash toggle
   const toggleTorch = async () => {
     if (!html5QrCodeRef.current || !isScanning) return;
     try {
-      // Html5Qrcode applyVideoConstraints
       await html5QrCodeRef.current.applyVideoConstraints({
         advanced: [{ torch: !torchOn } as unknown as MediaTrackConstraintSet],
       });
@@ -308,12 +359,14 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
       const decodedText = await html5QrCode.scanFile(file, true);
       handleBarcodeDecoded(decodedText);
       html5QrCode.clear();
-    } catch (err) {
-      if (soundEnabled) playScanSound(false);
-      setLastScannedMessage({
-        type: 'error',
-        text: 'Tidak dapat mendeteksi barcode pada gambar yang diunggah.',
-      });
+    } catch {
+      if (stateRef.current.soundEnabled) playScanSound(false);
+      if (isMountedRef.current) {
+        setLastScannedMessage({
+          type: 'error',
+          text: 'Tidak dapat mendeteksi barcode pada gambar yang diunggah.',
+        });
+      }
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
@@ -321,6 +374,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
 
   // Manage open / close lifecycle
   useEffect(() => {
+    isMountedRef.current = true;
     if (isOpen) {
       const timer = setTimeout(() => {
         startCamera();
@@ -333,6 +387,10 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
       stopCamera();
       setLastScannedMessage(null);
     }
+    return () => {
+      isMountedRef.current = false;
+      stopCamera();
+    };
   }, [isOpen, startCamera, stopCamera]);
 
   if (!isOpen) return null;

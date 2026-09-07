@@ -37,7 +37,7 @@ const MainLayout: React.FC = () => {
         <Header onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)} />
 
         {/* Scrollable Page Body */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <main className={`flex-1 min-w-0 ${activeTab === 'kasir' ? 'overflow-hidden p-0' : 'overflow-y-auto p-4 md:p-8'}`}>
           {activeTab === 'dashboard' && <DashboardView />}
           {activeTab === 'kasir' && <PosView />}
           {activeTab === 'produk' && <ProductsView />}
