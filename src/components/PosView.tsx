@@ -13,11 +13,14 @@ import {
   Check,
   AlertCircle,
   Receipt,
+  Scan,
+  Camera,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { usePos } from '../context/PosContext';
 import { formatRupiah, formatNumber, parseRupiahInput } from '../utils/formatters';
 import { PaymentMethod, Product } from '../types';
+import { BarcodeScannerModal } from './BarcodeScannerModal';
 
 export const PosView: React.FC = () => {
   const {
@@ -42,6 +45,8 @@ export const PosView: React.FC = () => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('Tunai');
   const [cashGivenText, setCashGivenText] = useState<string>('150000');
   const [notes, setNotes] = useState<string>('');
+  const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
+  const [skuFeedback, setSkuFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Cash given numerical calculation
   const cashGivenNumber = useMemo(() => {
@@ -55,6 +60,31 @@ export const PosView: React.FC = () => {
 
   const isCashInsufficient =
     selectedPaymentMethod === 'Tunai' && cartTotal > 0 && cashGivenNumber < cartTotal;
+
+  // Handle hardware barcode gun / manual SKU enter
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const q = searchQuery.trim();
+      if (!q) return;
+
+      const matched = products.find(
+        (p) =>
+          p.sku.toLowerCase() === q.toLowerCase() ||
+          String(p.id).toLowerCase() === q.toLowerCase()
+      );
+
+      if (matched) {
+        if (matched.stock <= 0) {
+          setSkuFeedback({ message: `Stok ${matched.name} (${matched.sku}) Habis!`, type: 'error' });
+        } else {
+          addToCart(matched);
+          setSkuFeedback({ message: `+1 ${matched.name} ditambahkan`, type: 'success' });
+          setSearchQuery('');
+        }
+        setTimeout(() => setSkuFeedback(null), 3000);
+      }
+    }
+  };
 
   // Filter products by category and query
   const filteredProducts = products.filter((p) => {
@@ -98,21 +128,60 @@ export const PosView: React.FC = () => {
 
   return (
     <div className="flex flex-col lg:flex-row h-[calc(100vh-4rem)] -m-4 md:-m-8 bg-[#fbf8ff] overflow-hidden">
+      {/* Barcode Scanner Camera Modal */}
+      <BarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+      />
+
       {/* Product Catalog (Left Area) */}
       <section className="flex-1 flex flex-col p-4 md:p-6 overflow-hidden min-w-0">
         {/* Search & Category Filter Bar */}
         <div className="space-y-3 pb-3 shrink-0">
-          {/* Search Input for POS */}
-          <div className="relative w-full">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#797988]" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari produk atau SKU..."
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#e2e1f2] rounded-xl text-sm text-[#30323e] placeholder-[#797988] focus:outline-none focus:border-[#684cb6] focus:ring-1 focus:ring-[#684cb6] shadow-xs"
-            />
+          {/* Search Input & Scan Barcode Action */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#797988]" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="Cari nama produk atau ketik / tembak SKU Barcode..."
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#e2e1f2] rounded-xl text-sm text-[#30323e] placeholder-[#797988] focus:outline-none focus:border-[#684cb6] focus:ring-1 focus:ring-[#684cb6] shadow-xs"
+              />
+            </div>
+
+            {/* Scan Barcode Camera Trigger Button */}
+            <button
+              id="btn-scan-barcode"
+              type="button"
+              onClick={() => setIsScannerOpen(true)}
+              className="px-4 py-2.5 bg-[#684cb6] hover:bg-[#583ca4] active:scale-98 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 transition-all cursor-pointer shrink-0"
+              title="Buka Pemindai Barcode Kamera"
+            >
+              <Scan className="w-4 h-4" />
+              <span className="hidden sm:inline">Scan Barcode</span>
+            </button>
           </div>
+
+          {/* Quick SKU notification feedback banner */}
+          {skuFeedback && (
+            <div
+              className={`text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-2 animate-in fade-in duration-150 ${
+                skuFeedback.type === 'success'
+                  ? 'bg-emerald-50 text-[#006d4b] border border-emerald-200'
+                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}
+            >
+              {skuFeedback.type === 'success' ? (
+                <Check className="w-3.5 h-3.5 text-[#006d4b]" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+              )}
+              <span>{skuFeedback.message}</span>
+            </div>
+          )}
 
           {/* Category Filter Pills */}
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">

@@ -1,6 +1,6 @@
 {
   "name": "KASIRKU - Point of Sale",
   "description": "Modern Point of Sale (POS) & Store Inventory System featuring cash register, product catalog, stock tracking, transaction receipts, and sales analytics.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
