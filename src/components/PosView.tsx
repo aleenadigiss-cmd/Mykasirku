@@ -30,6 +30,8 @@ import { usePos } from '../context/PosContext';
 import { formatRupiah, formatNumber, parseRupiahInput } from '../utils/formatters';
 import { PaymentMethod, Product } from '../types';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
+import { QrisBarcodeCard } from './QrisBarcodeCard';
+import { QrisModal } from './QrisModal';
 
 export const PosView: React.FC = () => {
   const {
@@ -47,6 +49,7 @@ export const PosView: React.FC = () => {
     completeCheckout,
     searchQuery,
     setSearchQuery,
+    settings,
   } = usePos();
 
   // Filters & Payment states
@@ -56,6 +59,7 @@ export const PosView: React.FC = () => {
   const [notes, setNotes] = useState<string>('');
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
   const [skuFeedback, setSkuFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [isQrisModalOpen, setIsQrisModalOpen] = useState<boolean>(false);
 
   // Layout sliding & resizing states
   const [cartPanelWidth, setCartPanelWidth] = useState<number>(() => {
@@ -219,6 +223,21 @@ export const PosView: React.FC = () => {
         onClose={() => setIsScannerOpen(false)}
       />
 
+      {/* QRIS Fullscreen / Customer Display Modal */}
+      <QrisModal
+        isOpen={isQrisModalOpen}
+        onClose={() => setIsQrisModalOpen(false)}
+        amount={cartTotal > 0 ? cartTotal : 50000}
+        storeName={settings.storeName || 'TOKO INDAH'}
+        storeCity={settings.storeAddress ? settings.storeAddress.split(',')[0] : 'JAKARTA'}
+        nmid="ID1020039201948"
+        onConfirmPayment={() => {
+          if (cart.length > 0) {
+            completeCheckout('QRIS', cartTotal, notes);
+          }
+        }}
+      />
+
       {/* Mobile / Tablet Segmented Slide Switcher (Shown on screens < lg) */}
       <div className="lg:hidden flex items-center border-b border-[#e2e1f2] bg-white shrink-0 shadow-xs z-10">
         <button
@@ -299,6 +318,21 @@ export const PosView: React.FC = () => {
               >
                 <Scan className="w-4 h-4" />
                 <span className="hidden sm:inline">Scan Barcode</span>
+              </button>
+
+              {/* Tampilkan Barcode QRIS Button */}
+              <button
+                id="btn-tampilkan-barcode-qris"
+                type="button"
+                onClick={() => {
+                  setSelectedPaymentMethod('QRIS');
+                  setIsQrisModalOpen(true);
+                }}
+                className="px-3.5 py-2.5 bg-white border border-[#b91c1c]/30 hover:bg-[#fee2e2]/40 text-[#b91c1c] rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
+                title="Tampilkan Barcode QRIS Toko (Standar Pembayaran Nasional)"
+              >
+                <QrCode className="w-4 h-4 text-[#b91c1c]" />
+                <span className="hidden sm:inline">Barcode QRIS</span>
               </button>
 
               {/* Grid Density Toggle (Desktop & Mobile) */}
@@ -861,14 +895,18 @@ export const PosView: React.FC = () => {
                   </div>
                 </div>
               ) : selectedPaymentMethod === 'QRIS' ? (
-                <div className="mt-1 p-2 bg-white rounded-xl border border-[#e2e1f2] flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#eeecfa] rounded-lg flex items-center justify-center text-[#684cb6] shrink-0">
-                    <QrCode className="w-6 h-6" />
-                  </div>
-                  <div className="text-xs">
-                    <p className="font-semibold text-[#30323e]">QRIS Dinamis Siap</p>
-                    <p className="text-[#5d5e6c] text-[11px]">Tampilkan QR di struk atau monitor kasir.</p>
-                  </div>
+                <div className="mt-1">
+                  <QrisBarcodeCard
+                    amount={cartTotal}
+                    storeName={settings.storeName || 'TOKO INDAH'}
+                    storeCity={settings.storeAddress ? settings.storeAddress.split(',')[0] : 'JAKARTA'}
+                    nmid="ID1020039201948"
+                    compact={true}
+                    onExpand={() => setIsQrisModalOpen(true)}
+                    onSimulateSuccess={() => {
+                      completeCheckout('QRIS', cartTotal, notes);
+                    }}
+                  />
                 </div>
               ) : (
                 <div className="mt-1 p-2 bg-white rounded-xl border border-[#e2e1f2] flex items-center gap-3">

@@ -8,6 +8,8 @@ import {
   StoreSettings,
   StockLog,
   PaymentMethod,
+  AuthUser,
+  UserRole,
 } from '../types';
 import {
   INITIAL_PRODUCTS,
@@ -15,6 +17,7 @@ import {
   INITIAL_TRANSACTIONS,
   INITIAL_CASHIERS,
   INITIAL_SETTINGS,
+  INITIAL_AUTH_USERS,
 } from '../mockData';
 
 export type ActiveNavTab =
@@ -89,6 +92,21 @@ interface PosContextType {
   // Stock logs
   stockLogs: StockLog[];
 
+  // Authentication & RBAC
+  currentUser: AuthUser | null;
+  isAuthenticated: boolean;
+  users: AuthUser[];
+  login: (username: string, password: string) => { success: boolean; message: string; user?: AuthUser };
+  registerUser: (data: {
+    name: string;
+    username: string;
+    password: string;
+    role: UserRole;
+    email?: string;
+    phone?: string;
+  }) => { success: boolean; message: string; user?: AuthUser };
+  logout: () => void;
+
   // Modal helpers
   lastCompletedTransaction: Transaction | null;
   setLastCompletedTransaction: (t: Transaction | null) => void;
@@ -120,11 +138,135 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('kasirku_transactions');
-    return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
+    if (saved) {
+      try {
+        const parsed: Transaction[] = JSON.parse(saved);
+        return parsed.map((t) => {
+          if (t.cashier === 'Budi S.' || t.cashier === 'Budi Santoso' || t.cashier === 'budi') {
+            return { ...t, cashier: 'Kassa 1' };
+          }
+          if (t.cashier === 'Siti M.' || t.cashier === 'Siti Aminah' || t.cashier === 'siti') {
+            return { ...t, cashier: 'Kassa 2' };
+          }
+          return t;
+        });
+      } catch {
+        return INITIAL_TRANSACTIONS;
+      }
+    }
+    return INITIAL_TRANSACTIONS;
   });
 
-  const [cashiers] = useState<CashierUser[]>(INITIAL_CASHIERS);
-  const [activeCashier, setActiveCashier] = useState<CashierUser>(INITIAL_CASHIERS[0]);
+  // Enterprise Auth & RBAC state
+  const [users, setUsers] = useState<AuthUser[]>(() => {
+    const saved = localStorage.getItem('kasirku_auth_users');
+    if (saved) {
+      try {
+        const parsed: AuthUser[] = JSON.parse(saved);
+        // Ensure default cashiers are updated to Kassa 1 and Kassa 2
+        const updated = parsed.map((u) => {
+          if (u.id === 'usr-2' || u.username === 'budi' || u.username === 'kassa1') {
+            return {
+              ...u,
+              name: 'Kassa 1',
+              username: 'kassa1',
+              email: 'kassa1@tokoindah.id',
+            };
+          }
+          if (u.id === 'usr-3' || u.username === 'siti' || u.username === 'kassa2') {
+            return {
+              ...u,
+              name: 'Kassa 2',
+              username: 'kassa2',
+              email: 'kassa2@tokoindah.id',
+            };
+          }
+          return u;
+        });
+        // Ensure super admin 'tokoindah' with password 'indahberharga134' is always guaranteed
+        const filtered = updated.filter((u) => u.username.toLowerCase() !== 'tokoindah');
+        return [INITIAL_AUTH_USERS[0], ...filtered];
+      } catch {
+        return INITIAL_AUTH_USERS;
+      }
+    }
+    return INITIAL_AUTH_USERS;
+  });
+
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    const saved = localStorage.getItem('kasirku_current_user');
+    if (saved) {
+      try {
+        const parsed: AuthUser = JSON.parse(saved);
+        if (parsed.id === 'usr-2' || parsed.username === 'budi' || parsed.username === 'kassa1') {
+          return { ...parsed, name: 'Kassa 1', username: 'kassa1', email: 'kassa1@tokoindah.id' };
+        }
+        if (parsed.id === 'usr-3' || parsed.username === 'siti' || parsed.username === 'kassa2') {
+          return { ...parsed, name: 'Kassa 2', username: 'kassa2', email: 'kassa2@tokoindah.id' };
+        }
+        return parsed;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  const isAuthenticated = !!currentUser;
+
+  const [cashiers, setCashiers] = useState<CashierUser[]>(() => {
+    const mapped: CashierUser[] = users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      role: u.role,
+      avatar: u.avatar,
+      username: u.username,
+    }));
+    return mapped.length > 0 ? mapped : INITIAL_CASHIERS;
+  });
+
+  const [activeCashier, setActiveCashier] = useState<CashierUser>(() => {
+    if (currentUser) {
+      return {
+        id: currentUser.id,
+        name: currentUser.name,
+        role: currentUser.role,
+        avatar: currentUser.avatar,
+        username: currentUser.username,
+      };
+    }
+    return INITIAL_CASHIERS[0];
+  });
+
+  // Sync users to localStorage and cashiers list
+  useEffect(() => {
+    localStorage.setItem('kasirku_auth_users', JSON.stringify(users));
+    setCashiers(
+      users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        role: u.role,
+        avatar: u.avatar,
+        username: u.username,
+      }))
+    );
+  }, [users]);
+
+  // Sync current user to active cashier
+  useEffect(() => {
+    if (currentUser) {
+      setActiveCashier({
+        id: currentUser.id,
+        name: currentUser.name,
+        role: currentUser.role,
+        avatar: currentUser.avatar,
+        username: currentUser.username,
+      });
+      localStorage.setItem('kasirku_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('kasirku_current_user');
+    }
+  }, [currentUser]);
 
   const [settings, setSettings] = useState<StoreSettings>(() => {
     const saved = localStorage.getItem('kasirku_settings');
@@ -405,6 +547,101 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSettings((prev) => ({ ...prev, ...updated }));
   };
 
+  // Auth & RBAC actions
+  const login = (usernameInput: string, passwordInput: string) => {
+    const cleanUser = usernameInput.trim().toLowerCase();
+    const cleanPass = passwordInput.trim();
+
+    if (!cleanUser || !cleanPass) {
+      return {
+        success: false,
+        message: 'Username dan password wajib diisi.',
+      };
+    }
+
+    const matched = users.find(
+      (u) => u.username.toLowerCase() === cleanUser && u.password === cleanPass
+    );
+
+    if (!matched) {
+      return {
+        success: false,
+        message: 'Kombinasi username atau password salah. Silakan periksa kembali.',
+      };
+    }
+
+    setCurrentUser(matched);
+    return {
+      success: true,
+      message: `Selamat datang kembali, ${matched.name}!`,
+      user: matched,
+    };
+  };
+
+  const registerUser = (data: {
+    name: string;
+    username: string;
+    password: string;
+    role: UserRole;
+    email?: string;
+    phone?: string;
+  }) => {
+    const cleanUser = data.username.trim().toLowerCase();
+    const cleanPass = data.password.trim();
+    const cleanName = data.name.trim();
+
+    if (!cleanName || !cleanUser || !cleanPass) {
+      return {
+        success: false,
+        message: 'Nama, username, dan password wajib diisi.',
+      };
+    }
+
+    if (users.some((u) => u.username.toLowerCase() === cleanUser)) {
+      return {
+        success: false,
+        message: `Username "${cleanUser}" sudah terdaftar. Silakan pilih username lain.`,
+      };
+    }
+
+    if (cleanPass.length < 6) {
+      return {
+        success: false,
+        message: 'Password harus minimal 6 karakter demi keamanan akun.',
+      };
+    }
+
+    const avatarUrl =
+      data.role === 'Super Admin'
+        ? 'https://lh3.googleusercontent.com/aida-public/AB6AXuBcPLMi85rGq0YDGmeyDMz1FidoiAoiSk1FDdFoNg8ek46kSHA84X6S_cPzMBRXQGGWl5h9KxZEcb24fLNKvckYmIyGkcT1Irb2t0d_C0AYYIRFwcFPVql-nWIJZhi6ZdIHFz7paY_nA5X_A_Zy-Lxg11su759_dM0-EpmI3BmLjwj_sNZ_IRubFxyxR2BL2axb2iw9mc3yEzjsz80BwVhHYO8QvpvhGoUpk9Eyf7VJT0V4Uxd3C8-5'
+        : 'https://lh3.googleusercontent.com/aida-public/AB6AXuAFIOLuCKLDnyIIJU4BbW8BxkuFYQ0Lz1Sgr4djBuFlAVWvTDXVSPcpNPYFVAsUAHOp7tEOzeKxSb4URdt82aMCFMjp9G_Zin6rLG6_KfZWoV0bXB2Fagh-8xfVGoGaqkcUnaISTJsTneQGZfhWi-wKqfVrkm1CKrkK7TcryqeiMQJmb-9-UG0BRt-ft4JxQrA4HJkint0zXZPP9xvHqGCWSeM9u90yg5kF9TEzmDDsXtGgKvesKOzy';
+
+    const newUser: AuthUser = {
+      id: `usr-${Date.now()}`,
+      username: cleanUser,
+      password: cleanPass,
+      name: cleanName,
+      role: data.role || 'Kasir',
+      email: data.email?.trim() || `${cleanUser}@tokoindah.id`,
+      phone: data.phone?.trim() || '',
+      avatar: avatarUrl,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updated = [...users, newUser];
+    setUsers(updated);
+
+    return {
+      success: true,
+      message: `Akun "${cleanUser}" (${data.role}) berhasil didaftarkan! Silakan masuk.`,
+      user: newUser,
+    };
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+  };
+
   const resetDemoData = () => {
     setProducts(INITIAL_PRODUCTS);
     setCategories(INITIAL_CATEGORIES);
@@ -454,6 +691,12 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cashiers,
         activeCashier,
         setActiveCashier,
+        currentUser,
+        isAuthenticated,
+        users,
+        login,
+        registerUser,
+        logout,
         isRegisterOpen,
         registerStartingCash,
         openRegister,

@@ -16,6 +16,7 @@ import { HistoryReportView } from './components/HistoryReportView';
 import { SettingsView } from './components/SettingsView';
 import { CheckoutSuccessModal } from './components/CheckoutSuccessModal';
 import { OpenRegisterModal } from './components/OpenRegisterModal';
+import { AuthView } from './components/AuthView';
 
 const MainLayout: React.FC = () => {
   const { activeTab } = usePos();
@@ -59,10 +60,20 @@ const MainLayout: React.FC = () => {
   );
 };
 
+const RootApp: React.FC = () => {
+  const { isAuthenticated } = usePos();
+
+  if (!isAuthenticated) {
+    return <AuthView />;
+  }
+
+  return <MainLayout />;
+};
+
 export default function App() {
   return (
     <PosProvider>
-      <MainLayout />
+      <RootApp />
     </PosProvider>
   );
 }

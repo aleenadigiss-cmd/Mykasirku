@@ -32,6 +32,8 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
     resetDemoData,
     sidebarCollapsed,
     toggleSidebar,
+    logout,
+    currentUser,
   } = usePos();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -59,23 +61,30 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
 
   return (
     <header className="bg-white border-b border-[#e2e1f2] h-16 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30 shadow-xs">
-      {/* Left: Mobile menu toggle + Search input */}
+      {/* Left: Universal Hamburger Menu toggle + Search input */}
       <div className="flex items-center gap-3 flex-1 max-w-xl">
+        {/* Universal Hamburger Menu Button */}
         <button
-          onClick={onToggleMobileMenu}
-          className="p-2 text-[#5d5e6c] hover:bg-[#f4f2fe] rounded-lg md:hidden"
-          aria-label="Buka Menu"
+          id="btn-hamburger-menu"
+          onClick={() => {
+            if (window.innerWidth < 1024) {
+              onToggleMobileMenu();
+            } else {
+              toggleSidebar();
+            }
+          }}
+          className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-[#30323e] hover:text-[#684cb6] hover:bg-[#f4f2fe] active:bg-[#e2e1f2] border border-[#e2e1f2] bg-white transition-all cursor-pointer shadow-2xs group shrink-0"
+          title={
+            sidebarCollapsed
+              ? 'Hamburger Menu: Perluas Navigasi'
+              : 'Hamburger Menu: Kecilkan / Buka Menu Navigasi'
+          }
+          aria-label="Hamburger Menu Navigasi"
         >
-          <Menu className="w-5 h-5" />
-        </button>
-
-        {/* Desktop Sidebar Toggle (Slide / Geser) */}
-        <button
-          onClick={toggleSidebar}
-          className="hidden md:flex p-2 text-[#5d5e6c] hover:text-[#684cb6] hover:bg-[#f4f2fe] rounded-xl transition-colors cursor-pointer"
-          title={sidebarCollapsed ? 'Perluas Sidebar (Geser Keluar)' : 'Kecilkan Sidebar (Geser Masuk untuk layar penuh)'}
-        >
-          {sidebarCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+          <Menu className="w-5 h-5 text-[#684cb6] group-hover:scale-105 transition-transform" />
+          <span className="text-xs font-bold text-[#30323e] hidden sm:inline-block">
+            Menu
+          </span>
         </button>
 
         <div className="relative w-full max-w-md">
@@ -243,16 +252,27 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
                   </button>
                 ))}
               </div>
-              <div className="pt-2 border-t border-[#e2e1f2]">
+              <div className="pt-2 border-t border-[#e2e1f2] space-y-1">
                 <button
                   onClick={() => {
                     setActiveTab('pengaturan');
                     setShowUserMenu(false);
                   }}
-                  className="w-full flex items-center gap-2 p-2 text-xs font-medium text-[#5d5e6c] hover:bg-[#f4f2fe] rounded-lg transition-colors"
+                  className="w-full flex items-center gap-2 p-2 text-xs font-medium text-[#5d5e6c] hover:bg-[#f4f2fe] rounded-lg transition-colors cursor-pointer"
                 >
                   <User className="w-3.5 h-3.5" />
                   <span>Pengaturan Kasir & Toko</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    logout();
+                  }}
+                  id="btn-logout-dropdown"
+                  className="w-full flex items-center gap-2 p-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Keluar dari Sistem (Logout)</span>
                 </button>
               </div>
             </div>

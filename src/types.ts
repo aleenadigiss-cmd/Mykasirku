@@ -50,11 +50,26 @@ export interface Transaction {
   notes?: string;
 }
 
+export type UserRole = 'Super Admin' | 'Admin' | 'Manager' | 'Kasir';
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  password?: string;
+  name: string;
+  role: UserRole;
+  email?: string;
+  phone?: string;
+  avatar: string;
+  createdAt?: string;
+}
+
 export interface CashierUser {
   id: string;
   name: string;
   role: string;
   avatar: string;
+  username?: string;
 }
 
 export type CashierProfile = CashierUser;

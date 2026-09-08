@@ -1,22 +1,61 @@
-import { Product, Category, Transaction, CashierUser, StoreSettings } from './types';
+import { Product, Category, Transaction, CashierUser, StoreSettings, AuthUser } from './types';
+
+export const INITIAL_AUTH_USERS: AuthUser[] = [
+  {
+    id: 'usr-admin-super',
+    username: 'tokoindah',
+    password: 'indahberharga134',
+    name: 'Super Admin Toko Indah',
+    role: 'Super Admin',
+    email: 'admin@tokoindah.id',
+    phone: '0812-9876-5432',
+    avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBcPLMi85rGq0YDGmeyDMz1FidoiAoiSk1FDdFoNg8ek46kSHA84X6S_cPzMBRXQGGWl5h9KxZEcb24fLNKvckYmIyGkcT1Irb2t0d_C0AYYIRFwcFPVql-nWIJZhi6ZdIHFz7paY_nA5X_A_Zy-Lxg11su759_dM0-EpmI3BmLjwj_sNZ_IRubFxyxR2BL2axb2iw9mc3yEzjsz80BwVhHYO8QvpvhGoUpk9Eyf7VJT0V4Uxd3C8-5',
+    createdAt: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 'usr-2',
+    username: 'kassa1',
+    password: 'kasir123',
+    name: 'Kassa 1',
+    role: 'Kasir',
+    email: 'kassa1@tokoindah.id',
+    phone: '0813-1122-3344',
+    avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAFIOLuCKLDnyIIJU4BbW8BxkuFYQ0Lz1Sgr4djBuFlAVWvTDXVSPcpNPYFVAsUAHOp7tEOzeKxSb4URdt82aMCFMjp9G_Zin6rLG6_KfZWoV0bXB2Fagh-8xfVGoGaqkcUnaISTJsTneQGZfhWi-wKqfVrkm1CKrkK7TcryqeiMQJmb-9-UG0BRt-ft4JxQrA4HJkint0zXZPP9xvHqGCWSeM9u90yg5kF9TEzmDDsXtGgKvesKOzy',
+    createdAt: '2024-02-15T08:00:00Z',
+  },
+  {
+    id: 'usr-3',
+    username: 'kassa2',
+    password: 'kasir123',
+    name: 'Kassa 2',
+    role: 'Kasir',
+    email: 'kassa2@tokoindah.id',
+    phone: '0813-5566-7788',
+    avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD6fJU5K8gQ9x5znuv5qylAk_awHjastjR3XkgM5hXWQ7KwqVI0IV24BnKa_aVMP9ku0MEu_08uogMe5Us2dDJgR1upigk2XdY89D4X5x9EZA7uccDszIZfueWpwmtP0fieGGJ4QHU5-qxiPnlr3-X9rMmXUFOsZRgLVh1W-VPU2AKYEAnto7uua3IvJClJtAE-R4Vo8OqpHbo49e-XSF-bxW_LQEkTxODkIVo4OfypkpdrPc_VXuvB',
+    createdAt: '2024-03-01T09:30:00Z',
+  },
+];
 
 export const INITIAL_CASHIERS: CashierUser[] = [
   {
-    id: 'usr-1',
-    name: 'Petugas Kasir',
-    role: 'Admin',
+    id: 'usr-admin-super',
+    username: 'tokoindah',
+    name: 'Super Admin Toko Indah',
+    role: 'Super Admin',
     avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBcPLMi85rGq0YDGmeyDMz1FidoiAoiSk1FDdFoNg8ek46kSHA84X6S_cPzMBRXQGGWl5h9KxZEcb24fLNKvckYmIyGkcT1Irb2t0d_C0AYYIRFwcFPVql-nWIJZhi6ZdIHFz7paY_nA5X_A_Zy-Lxg11su759_dM0-EpmI3BmLjwj_sNZ_IRubFxyxR2BL2axb2iw9mc3yEzjsz80BwVhHYO8QvpvhGoUpk9Eyf7VJT0V4Uxd3C8-5',
   },
   {
     id: 'usr-2',
-    name: 'Budi Santoso',
-    role: 'Petugas Kasir',
+    username: 'kassa1',
+    name: 'Kassa 1',
+    role: 'Kasir',
     avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAFIOLuCKLDnyIIJU4BbW8BxkuFYQ0Lz1Sgr4djBuFlAVWvTDXVSPcpNPYFVAsUAHOp7tEOzeKxSb4URdt82aMCFMjp9G_Zin6rLG6_KfZWoV0bXB2Fagh-8xfVGoGaqkcUnaISTJsTneQGZfhWi-wKqfVrkm1CKrkK7TcryqeiMQJmb-9-UG0BRt-ft4JxQrA4HJkint0zXZPP9xvHqGCWSeM9u90yg5kF9TEzmDDsXtGgKvesKOzy',
   },
   {
     id: 'usr-3',
-    name: 'Siti Aminah',
-    role: 'Petugas Kasir',
+    username: 'kassa2',
+    name: 'Kassa 2',
+    role: 'Kasir',
     avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD6fJU5K8gQ9x5znuv5qylAk_awHjastjR3XkgM5hXWQ7KwqVI0IV24BnKa_aVMP9ku0MEu_08uogMe5Us2dDJgR1upigk2XdY89D4X5x9EZA7uccDszIZfueWpwmtP0fieGGJ4QHU5-qxiPnlr3-X9rMmXUFOsZRgLVh1W-VPU2AKYEAnto7uua3IvJClJtAE-R4Vo8OqpHbo49e-XSF-bxW_LQEkTxODkIVo4OfypkpdrPc_VXuvB',
   },
 ];
@@ -169,7 +208,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: 'TRX-20231024-001',
     timestamp: '24 Okt 2023, 14:30',
-    cashier: 'Budi S.',
+    cashier: 'Kassa 1',
     items: [
       { id: 10, name: 'Kopi Arabica 200g', price: 45000, quantity: 2, sku: 'SKU-MN-101' },
       { id: 11, name: 'Susu Almond 1L', price: 35000, quantity: 1, sku: 'SKU-MN-202' },
@@ -187,7 +226,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: 'TRX-20231024-002',
     timestamp: '24 Okt 2023, 15:15',
-    cashier: 'Siti M.',
+    cashier: 'Kassa 2',
     items: [
       { id: 1, name: 'Buku Tulis Sinar Dunia', price: 5000, quantity: 5, sku: 'BT01' },
       { id: 2, name: 'Pensil 2B Faber-Castell', price: 2000, quantity: 10, sku: 'PS01' },
@@ -204,7 +243,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: 'TRX-20231024-003',
     timestamp: '24 Okt 2023, 16:00',
-    cashier: 'Budi S.',
+    cashier: 'Kassa 1',
     items: [
       { id: 5, name: 'Kertas HVS A4 80gr Sinar Dunia', price: 55000, quantity: 3, sku: 'SKU-AT-042' },
       { id: 10, name: 'Kopi Arabica 200g', price: 45000, quantity: 1, sku: 'SKU-MN-101' },
@@ -221,7 +260,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: 'TRX-20231024-004',
     timestamp: '24 Okt 2023, 16:45',
-    cashier: 'Siti M.',
+    cashier: 'Kassa 2',
     items: [
       { id: 5, name: 'Kertas HVS A4 80gr Sinar Dunia', price: 55000, quantity: 1, sku: 'SKU-AT-042' },
       { id: 12, name: 'Roti Gandum', price: 25000, quantity: 1, sku: 'SKU-MK-303' },
@@ -239,7 +278,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: 'TRX-00124',
     timestamp: 'Hari Ini, 14:32 WIB',
-    cashier: 'Budi Santoso',
+    cashier: 'Kassa 1',
     items: [
       { id: 5, name: 'Kertas HVS A4 80gr Sinar Dunia', price: 55000, quantity: 2, sku: 'SKU-AT-042' },
       { id: 1, name: 'Buku Tulis Sinar Dunia', price: 5000, quantity: 3, sku: 'BT01' },
@@ -256,7 +295,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: 'TRX-00123',
     timestamp: 'Hari Ini, 14:15 WIB',
-    cashier: 'Budi Santoso',
+    cashier: 'Kassa 1',
     items: [
       { id: 10, name: 'Kopi Arabica 200g', price: 45000, quantity: 1, sku: 'SKU-MN-101' },
     ],
@@ -272,7 +311,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: 'TRX-00122',
     timestamp: 'Hari Ini, 13:50 WIB',
-    cashier: 'Siti Aminah',
+    cashier: 'Kassa 2',
     items: [
       { id: 8, name: 'Tinta Printer Epson Hitam', price: 95000, quantity: 2, sku: 'SKU-AK-099' },
       { id: 5, name: 'Kertas HVS A4 80gr Sinar Dunia', price: 55000, quantity: 2, sku: 'SKU-AT-042' },
@@ -290,7 +329,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: 'TRX-00121',
     timestamp: 'Hari Ini, 13:10 WIB',
-    cashier: 'Siti Aminah',
+    cashier: 'Kassa 2',
     items: [
       { id: 1, name: 'Buku Tulis Sinar Dunia', price: 5000, quantity: 3, sku: 'BT01' },
     ],

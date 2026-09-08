@@ -10,9 +10,12 @@ import {
   RotateCcw,
   Plus,
   Trash2,
+  QrCode,
+  Download,
 } from 'lucide-react';
 import { usePos } from '../context/PosContext';
 import { CashierProfile } from '../types';
+import { QrisBarcodeCard } from './QrisBarcodeCard';
 
 export const SettingsView: React.FC = () => {
   const { settings, updateSettings, cashiers, activeCashier, setActiveCashier, resetDemoData } =
@@ -200,6 +203,63 @@ export const SettingsView: React.FC = () => {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Section 4: Barcode QRIS Toko (Standar Pembayaran Nasional) */}
+        <div className="bg-white p-6 rounded-2xl border border-[#e2e1f2] shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#e2e1f2] gap-2">
+            <h3 className="text-base font-bold text-[#30323e] flex items-center gap-2">
+              <QrCode className="w-5 h-5 text-[#b91c1c]" />
+              <span>Barcode QRIS Toko (Akrilik Meja Kasir / Cetak)</span>
+            </h3>
+            <span className="text-[11px] font-semibold text-[#006d4b] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full w-fit">
+              Terdaftar di Bank Indonesia (GPN)
+            </span>
+          </div>
+
+          <p className="text-xs text-[#5d5e6c]">
+            Barcode QRIS resmi ini dapat diunduh atau dicetak untuk dipajang di atas meja kasir toko. Pelanggan dapat memindai langsung menggunakan seluruh aplikasi m-Banking dan e-Wallet (BCA, Mandiri, BRI, BNI, GoPay, OVO, DANA, ShopeePay, LinkAja).
+          </p>
+
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-6 pt-2">
+            <div className="w-full max-w-xs">
+              <QrisBarcodeCard
+                amount={0}
+                storeName={formData.storeName || settings.storeName || 'TOKO INDAH'}
+                storeCity={formData.storeAddress ? formData.storeAddress.split(',')[0] : 'JAKARTA'}
+                nmid="ID1020039201948"
+                compact={false}
+              />
+            </div>
+
+            <div className="flex-1 space-y-3 text-xs text-[#5d5e6c]">
+              <div className="bg-[#f8f7fd] p-4 rounded-xl border border-[#e2e1f2] space-y-2">
+                <h4 className="font-bold text-[#30323e]">Informasi Merchant QRIS</h4>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-[#797988] block">Nama Merchant:</span>
+                    <span className="font-semibold text-[#30323e]">{formData.storeName || settings.storeName}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#797988] block">NMID:</span>
+                    <span className="font-mono font-semibold text-[#30323e]">ID1020039201948</span>
+                  </div>
+                  <div>
+                    <span className="text-[#797988] block">Layanan:</span>
+                    <span className="font-semibold text-[#30323e]">QRIS MPM Dinamis & Statis</span>
+                  </div>
+                  <div>
+                    <span className="text-[#797988] block">Akseptasi:</span>
+                    <span className="font-semibold text-[#006d4b]">Semua Bank & Dompet Digital</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#fff7ed] p-3.5 rounded-xl border border-[#ffedd5] text-[#9a3412] text-[11px] leading-relaxed">
+                <strong>Tips Kasir:</strong> Pada layar Transaksi Kasir (POS), ketika metode <strong>QRIS</strong> dipilih, sistem secara otomatis menghasilkan Barcode QRIS Dinamis lengkap dengan nominal total belanja pelanggan. Kasir juga dapat menekan tombol <strong>"Barcode QRIS"</strong> di bilah atas untuk menampilkan QR ukuran besar kepada pelanggan.
+              </div>
+            </div>
           </div>
         </div>
 

@@ -9,6 +9,7 @@ import {
   Settings,
   FolderTree,
   X,
+  Menu,
   ChevronLeft,
   ChevronRight,
   PanelLeftClose,
@@ -102,11 +103,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
               K
             </div>
             <button
+              id="btn-sidebar-hamburger-expand"
               onClick={toggleSidebar}
-              title="Perluas Menu Sidebar (Geser Keluar)"
+              title="Perluas Menu Sidebar (Hamburger Menu)"
               className="p-1.5 rounded-lg text-[#5d5e6c] hover:text-[#684cb6] hover:bg-[#f4f2fe] transition-colors cursor-pointer mt-1"
+              aria-label="Perluas Menu Sidebar"
             >
-              <ChevronRight className="w-4 h-4" />
+              <Menu className="w-5 h-5" />
             </button>
           </div>
         ) : (
@@ -121,13 +124,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             <div className="flex items-center gap-1">
-              {/* Desktop Slide Collapse Button */}
+              {/* Desktop Slide Collapse Button with Hamburger Menu Icon */}
               <button
+                id="btn-sidebar-hamburger-collapse"
                 onClick={toggleSidebar}
-                title="Sembunyikan / Kecilkan Sidebar (Geser ke Kiri)"
+                title="Sembunyikan / Kecilkan Sidebar (Hamburger Menu)"
                 className="hidden md:flex p-1.5 rounded-lg text-[#5d5e6c] hover:text-[#684cb6] hover:bg-[#f4f2fe] transition-colors cursor-pointer"
+                aria-label="Kecilkan Menu Sidebar"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <Menu className="w-5 h-5" />
               </button>
 
               {/* Mobile Close Button */}
@@ -237,9 +242,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {renderNavContent(sidebarCollapsed)}
       </aside>
 
-      {/* Mobile Drawer */}
+      {/* Slide-in Hamburger Drawer */}
       {isMobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
+        <div className="fixed inset-0 z-50 flex">
           <div
             className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
             onClick={onCloseMobile}

@@ -99,9 +99,38 @@ export const CheckoutSuccessModal: React.FC = () => {
 
             {/* Payment & Change */}
             <div className="pt-2 border-t border-dashed border-[#b1b1c0] space-y-1 text-[11px]">
+              <div className="flex justify-between items-center text-[#5d5e6c]">
+                <span>Metode Pembayaran</span>
+                <span className="font-bold flex items-center gap-1.5 text-[#30323e]">
+                  {tx.paymentMethod === 'QRIS' && (
+                    <span className="bg-[#b91c1c] text-white text-[9px] px-1 py-0.2 rounded font-black">
+                      QRIS
+                    </span>
+                  )}
+                  <span>{tx.paymentMethod}</span>
+                </span>
+              </div>
+
+              {tx.paymentMethod === 'QRIS' && (
+                <div className="py-1 my-1 px-2 bg-[#fdf2f2] border border-[#fecaca] rounded-lg text-[10px] space-y-0.5">
+                  <div className="flex justify-between text-[#991b1b] font-bold">
+                    <span>NMID</span>
+                    <span>ID1020039201948</span>
+                  </div>
+                  <div className="flex justify-between text-[#797988]">
+                    <span>RRN / Reff</span>
+                    <span className="font-mono">RRN-2026-{tx.id.replace(/[^0-9]/g, '').slice(-6) || '928401'}</span>
+                  </div>
+                  <div className="flex justify-between text-[#006d4b] font-bold">
+                    <span>Status Transaksi</span>
+                    <span>LUNAS (Auto Verified)</span>
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-between text-[#5d5e6c]">
-                <span>Bayar ({tx.paymentMethod})</span>
-                <span>{formatRupiah(tx.amountPaid)}</span>
+                <span>Jumlah Bayar</span>
+                <span className="font-semibold text-[#30323e]">{formatRupiah(tx.amountPaid)}</span>
               </div>
               <div className="flex justify-between font-bold text-[#006d4b]">
                 <span>Kembalian</span>
