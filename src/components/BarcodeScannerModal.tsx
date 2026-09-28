@@ -19,13 +19,16 @@ import { usePos } from '../context/PosContext';
 import { Product } from '../types';
 import { formatRupiah } from '../utils/formatters';
 
-interface BarcodeScannerModalProps {
+export interface BarcodeScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onScanResult?: (code: string) => void;
+  title?: string;
+  subtitle?: string;
 }
 
 // Sound effect generators using Web Audio API
-function playScanSound(success: boolean) {
+export function playScanSound(success: boolean) {
   try {
     const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const audioCtx = new AudioContextClass();
@@ -62,6 +65,9 @@ function playScanSound(success: boolean) {
 export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   isOpen,
   onClose,
+  onScanResult,
+  title,
+  subtitle,
 }) => {
   const { products, addToCart, cart } = usePos();
 
@@ -92,6 +98,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
     soundEnabled,
     continuousMode,
     onClose,
+    onScanResult,
   });
 
   useEffect(() => {
@@ -102,6 +109,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
       soundEnabled,
       continuousMode,
       onClose,
+      onScanResult,
     };
   });
 
@@ -121,7 +129,24 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
       soundEnabled: isSoundOn,
       continuousMode: isContinuous,
       onClose: closeFn,
+      onScanResult: scanCallback,
     } = stateRef.current;
+
+    // If callback provided (e.g. for Add/Edit product SKU capture), invoke it directly
+    if (scanCallback) {
+      if (isSoundOn) playScanSound(true);
+      scanCallback(code);
+      if (isMountedRef.current) {
+        setLastScannedMessage({
+          type: 'success',
+          text: `Barcode terdeteksi: ${code}`,
+        });
+      }
+      setTimeout(() => {
+        closeFn();
+      }, 500);
+      return;
+    }
 
     // Find matching product by exact SKU or ID (case-insensitive)
     const matched = currentProducts.find(
@@ -411,9 +436,11 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
               <Scan className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base leading-tight">Pemindai Barcode / SKU</h3>
+              <h3 className="font-bold text-base leading-tight">
+                {title || 'Pemindai Barcode / SKU'}
+              </h3>
               <p className="text-xs text-white/80">
-                Arahkan kamera ke barcode produk untuk otomatis masuk ke keranjang
+                {subtitle || 'Arahkan kamera ke barcode produk untuk otomatis masuk ke keranjang'}
               </p>
             </div>
           </div>

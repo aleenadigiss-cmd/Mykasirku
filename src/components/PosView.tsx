@@ -24,12 +24,13 @@ import {
   ArrowLeft,
   GripVertical,
   SlidersHorizontal,
+  PackageX,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { usePos } from '../context/PosContext';
 import { formatRupiah, formatNumber, parseRupiahInput } from '../utils/formatters';
 import { PaymentMethod, Product } from '../types';
-import { BarcodeScannerModal } from './BarcodeScannerModal';
+import { BarcodeScannerModal, playScanSound } from './BarcodeScannerModal';
 import { QrisBarcodeCard } from './QrisBarcodeCard';
 import { QrisModal } from './QrisModal';
 
@@ -49,6 +50,7 @@ export const PosView: React.FC = () => {
     completeCheckout,
     searchQuery,
     setSearchQuery,
+    setActiveTab,
     settings,
   } = usePos();
 
@@ -91,7 +93,100 @@ export const PosView: React.FC = () => {
   const isCashInsufficient =
     selectedPaymentMethod === 'Tunai' && cartTotal > 0 && cashGivenNumber < cartTotal;
 
-  // Handle hardware barcode gun or Enter key
+  // Hardware barcode scanner buffer & global listener (USB / Wireless handheld scanner)
+  const barcodeBufferRef = useRef<string>('');
+  const lastKeyTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if modals are open
+      if (isScannerOpen || isQrisModalOpen) return;
+
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+
+      // If user is focused on the search input itself, let handleSearchKeyDown handle Enter
+      if (target?.id === 'search-produk-pos') return;
+
+      // If typing in another text field manually, ignore
+      if (isInput && target?.id !== 'search-produk-pos') {
+        const now = Date.now();
+        const diff = now - lastKeyTimeRef.current;
+        lastKeyTimeRef.current = now;
+        if (diff > 50 && e.key !== 'Enter') {
+          return;
+        }
+      }
+
+      const now = Date.now();
+      const interval = now - lastKeyTimeRef.current;
+      lastKeyTimeRef.current = now;
+
+      if (e.key === 'Enter') {
+        const scanned = barcodeBufferRef.current.trim();
+        barcodeBufferRef.current = '';
+
+        if (scanned.length >= 2) {
+          e.preventDefault();
+          const matched = products.find(
+            (p) =>
+              p.sku.toLowerCase() === scanned.toLowerCase() ||
+              String(p.id).toLowerCase() === scanned.toLowerCase() ||
+              p.name.toLowerCase() === scanned.toLowerCase()
+          );
+
+          if (matched) {
+            if (matched.stock <= 0) {
+              playScanSound(false);
+              setSkuFeedback({
+                message: `⚠️ Stok ${matched.name} (${matched.sku}) Habis!`,
+                type: 'error',
+              });
+            } else {
+              addToCart(matched);
+              playScanSound(true);
+              setSkuFeedback({
+                message: `✅ Discan (Scanner Fisik): +1 ${matched.name} (${matched.sku})`,
+                type: 'success',
+              });
+            }
+          } else {
+            playScanSound(false);
+            setSkuFeedback({
+              message: `❌ Barcode "${scanned}" tidak ditemukan dalam katalog!`,
+              type: 'error',
+            });
+          }
+          setTimeout(() => setSkuFeedback(null), 3500);
+        }
+        return;
+      }
+
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      if (e.key.length === 1) {
+        if (!isInput) {
+          barcodeBufferRef.current += e.key;
+          setTimeout(() => {
+            if (Date.now() - lastKeyTimeRef.current > 400) {
+              barcodeBufferRef.current = '';
+            }
+          }, 450);
+        } else if (interval < 50) {
+          barcodeBufferRef.current += e.key;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [products, addToCart, isScannerOpen, isQrisModalOpen]);
+
+  // Handle hardware barcode gun or Enter key inside search box
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       const q = searchQuery.trim();
@@ -100,19 +195,25 @@ export const PosView: React.FC = () => {
       const matched = products.find(
         (p) =>
           p.sku.toLowerCase() === q.toLowerCase() ||
-          String(p.id).toLowerCase() === q.toLowerCase()
+          String(p.id).toLowerCase() === q.toLowerCase() ||
+          p.name.toLowerCase() === q.toLowerCase()
       );
 
       if (matched) {
         if (matched.stock <= 0) {
+          playScanSound(false);
           setSkuFeedback({ message: `Stok ${matched.name} (${matched.sku}) Habis!`, type: 'error' });
         } else {
           addToCart(matched);
-          setSkuFeedback({ message: `+1 ${matched.name} ditambahkan`, type: 'success' });
+          playScanSound(true);
+          setSkuFeedback({ message: `+1 ${matched.name} (${matched.sku}) ditambahkan`, type: 'success' });
           setSearchQuery('');
         }
-        setTimeout(() => setSkuFeedback(null), 3000);
+      } else {
+        playScanSound(false);
+        setSkuFeedback({ message: `Produk / Barcode "${q}" tidak ditemukan!`, type: 'error' });
       }
+      setTimeout(() => setSkuFeedback(null), 3500);
     }
   };
 
@@ -290,6 +391,7 @@ export const PosView: React.FC = () => {
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#797988]" />
                 <input
+                  id="search-produk-pos"
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -542,6 +644,25 @@ export const PosView: React.FC = () => {
                     </div>
                   );
                 })}
+              </div>
+            ) : products.length === 0 ? (
+              <div className="h-72 flex flex-col items-center justify-center text-center p-6 text-[#5d5e6c]">
+                <div className="w-16 h-16 rounded-2xl bg-[#f4f2fe] text-[#684cb6] flex items-center justify-center mb-3">
+                  <PackageX className="w-8 h-8" />
+                </div>
+                <p className="text-base font-bold text-[#30323e]">Katalog Produk Kosong</p>
+                <p className="text-xs text-[#797988] mt-1 max-w-sm">
+                  Semua produk telah dikosongkan dari sistem. Buka menu Produk untuk menambahkan barang baru ke katalog.
+                </p>
+                <button
+                  type="button"
+                  id="btn-pos-ke-produk"
+                  onClick={() => setActiveTab('produk')}
+                  className="mt-4 px-5 py-2.5 text-xs text-white font-semibold bg-[#684cb6] hover:bg-[#5b3fa9] rounded-xl transition-all cursor-pointer shadow-xs flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Ke Menu Produk</span>
+                </button>
               </div>
             ) : (
               <div className="h-64 flex flex-col items-center justify-center text-center p-6 text-[#5d5e6c]">

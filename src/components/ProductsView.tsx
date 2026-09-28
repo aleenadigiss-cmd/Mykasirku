@@ -9,19 +9,49 @@ import {
   Upload,
   Search,
   Filter,
+  PackagePlus,
+  PackageX,
+  Wand2,
+  Printer,
+  Scan,
+  Barcode as BarcodeIcon,
 } from 'lucide-react';
 import { usePos } from '../context/PosContext';
 import { formatRupiah } from '../utils/formatters';
 import { Product } from '../types';
+import { BarcodeLabelModal } from './BarcodeLabelModal';
+import { BarcodeScannerModal } from './BarcodeScannerModal';
 
 export const ProductsView: React.FC = () => {
-  const { products, categories, addProduct, updateProduct, deleteProduct, searchQuery } = usePos();
+  const {
+    products,
+    categories,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    clearAllProducts,
+    restockProduct,
+    searchQuery,
+  } = usePos();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [localSearch, setLocalSearch] = useState<string>('');
   const [showAddEditModal, setShowAddEditModal] = useState<boolean>(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
+  const [isClearing, setIsClearing] = useState<boolean>(false);
+
+  // Barcode Label & Scanner states
+  const [showBarcodeModal, setShowBarcodeModal] = useState<boolean>(false);
+  const [barcodeModalProduct, setBarcodeModalProduct] = useState<Product | null>(null);
+  const [isFormScannerOpen, setIsFormScannerOpen] = useState<boolean>(false);
+
+  // Quick Restock state
+  const [restockTarget, setRestockTarget] = useState<Product | null>(null);
+  const [restockQty, setRestockQty] = useState<number>(10);
+  const [restockReason, setRestockReason] = useState<string>('Restock / Pembelian');
 
   // Form State
   const [formData, setFormData] = useState({
@@ -65,12 +95,26 @@ export const ProductsView: React.FC = () => {
     },
   ];
 
+  const handleGenerateSku = () => {
+    // Generate clean Indonesian retail standard barcode (899...) or category SKU
+    const isEan = Math.random() > 0.4;
+    if (isEan) {
+      const randDigits = Math.floor(100000000 + Math.random() * 900000000);
+      setFormData((prev) => ({ ...prev, sku: `899${randDigits}` }));
+    } else {
+      const prefix = (formData.category || 'PRD').slice(0, 3).toUpperCase().replace(/[^A-Z]/g, 'PRD');
+      const rand = Math.floor(10000 + Math.random() * 90000);
+      setFormData((prev) => ({ ...prev, sku: `${prefix}-${rand}` }));
+    }
+  };
+
   const handleOpenAddModal = () => {
     setEditingProduct(null);
+    const defCat = categories.find((c) => c.id !== 'all')?.name || 'Umum';
     setFormData({
       name: '',
-      sku: `SKU-${Date.now().toString().slice(-4)}`,
-      category: categories[1]?.name || 'Alat Tulis',
+      sku: `PRD-${Math.floor(1000 + Math.random() * 9000)}`,
+      category: defCat,
       price: 10000,
       stock: 50,
       minStock: 10,
@@ -99,8 +143,8 @@ export const ProductsView: React.FC = () => {
 
     if (editingProduct) {
       updateProduct(editingProduct.id, {
-        name: formData.name,
-        sku: formData.sku,
+        name: formData.name.trim(),
+        sku: formData.sku.trim(),
         category: formData.category,
         price: Number(formData.price),
         stock: Number(formData.stock),
@@ -109,8 +153,8 @@ export const ProductsView: React.FC = () => {
       });
     } else {
       addProduct({
-        name: formData.name,
-        sku: formData.sku,
+        name: formData.name.trim(),
+        sku: formData.sku.trim(),
         category: formData.category,
         price: Number(formData.price),
         stock: Number(formData.stock),
@@ -129,10 +173,27 @@ export const ProductsView: React.FC = () => {
     }
   };
 
+  const handleClearAllConfirm = async () => {
+    setIsClearing(true);
+    try {
+      await clearAllProducts();
+      setShowClearAllModal(false);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  const handleQuickRestockSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!restockTarget || restockQty === 0) return;
+    restockProduct(restockTarget.id, Number(restockQty), restockReason);
+    setRestockTarget(null);
+  };
+
   // Filter products by category and global/local search
   const filteredProducts = products.filter((p) => {
     const matchesCat = !selectedCategory || p.category === selectedCategory;
-    const q = searchQuery.toLowerCase().trim();
+    const q = (localSearch || searchQuery).toLowerCase().trim();
     const matchesSearch =
       !q ||
       p.name.toLowerCase().includes(q) ||
@@ -147,15 +208,36 @@ export const ProductsView: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl md:text-3xl font-extrabold text-[#30323e] tracking-tight">
-            Produk
+            Katalog Produk
           </h2>
           <p className="text-xs md:text-sm text-[#5d5e6c] mt-1">
-            Kelola data produk, harga, dan stok.
+            Kelola data produk, harga jual, barcode/SKU, dan mutasi stok barang.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-52">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+          {/* Local Search Input */}
+          <div className="relative flex-1 sm:w-56">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#797988]" />
+            <input
+              type="text"
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              placeholder="Cari nama atau SKU..."
+              className="w-full h-11 pl-9 pr-3 rounded-xl border border-[#e2e1f2] bg-white text-xs md:text-sm text-[#30323e] focus:border-[#684cb6] outline-none"
+            />
+            {localSearch && (
+              <button
+                type="button"
+                onClick={() => setLocalSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#797988] hover:text-[#30323e]"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="relative flex-1 sm:w-48">
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
@@ -172,6 +254,35 @@ export const ProductsView: React.FC = () => {
             </select>
             <Filter className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-[#797988] pointer-events-none" />
           </div>
+
+          {products.length > 0 && (
+            <button
+              id="btn-cetak-label-barcode"
+              type="button"
+              onClick={() => {
+                setBarcodeModalProduct(null);
+                setShowBarcodeModal(true);
+              }}
+              className="bg-white border border-[#684cb6]/40 hover:bg-[#f4f2fe] active:scale-[0.98] text-[#684cb6] font-semibold text-xs md:text-sm px-4 h-11 rounded-xl flex items-center gap-2 shadow-xs transition-all whitespace-nowrap cursor-pointer"
+              title="Cetak Stiker Label Barcode Harga untuk Rak / Display Toko"
+            >
+              <Printer className="w-4 h-4 text-[#684cb6]" />
+              <span>Cetak Label Barcode</span>
+            </button>
+          )}
+
+          {products.length > 0 && (
+            <button
+              id="btn-kosongkan-produk"
+              type="button"
+              onClick={() => setShowClearAllModal(true)}
+              className="border border-[#f97386]/60 hover:bg-[#f97386]/15 active:scale-[0.98] text-[#a8364b] font-semibold text-xs md:text-sm px-4 h-11 rounded-xl flex items-center gap-1.5 shadow-xs transition-all whitespace-nowrap cursor-pointer"
+              title="Kosongkan Semua Produk dari Database"
+            >
+              <Trash2 className="w-4 h-4 text-[#a8364b]" />
+              <span>Kosongkan Semua</span>
+            </button>
+          )}
 
           <button
             id="btn-tambah-produk"
@@ -204,6 +315,7 @@ export const ProductsView: React.FC = () => {
               {filteredProducts.length > 0 ? (
                 filteredProducts.map((product) => {
                   const isOutOfStock = product.stock === 0;
+                  const isLowStock = product.stock <= (product.minStock || 10);
                   return (
                     <tr
                       key={product.id}
@@ -223,9 +335,25 @@ export const ProductsView: React.FC = () => {
                       </td>
                       <td className="p-4 font-semibold text-[#30323e]">
                         {product.name}
+                        {isLowStock && !isOutOfStock && (
+                          <span className="block text-[10px] text-amber-700 font-normal">
+                            Stok menipis (&le; {product.minStock || 10})
+                          </span>
+                        )}
                       </td>
-                      <td className="p-4 text-xs font-mono text-[#5d5e6c]">
-                        {product.sku}
+                      <td className="p-4 text-xs font-mono">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBarcodeModalProduct(product);
+                            setShowBarcodeModal(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#f4f2fe] hover:bg-[#a589f8]/20 text-[#684cb6] border border-[#e2e1f2] transition-colors cursor-pointer group/barcode"
+                          title="Klik untuk lihat & cetak barcode produk ini"
+                        >
+                          <BarcodeIcon className="w-3.5 h-3.5 text-[#684cb6] shrink-0" />
+                          <span>{product.sku}</span>
+                        </button>
                       </td>
                       <td className="p-4">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-[#e3e1ec] text-[#515159] text-xs font-medium">
@@ -240,7 +368,7 @@ export const ProductsView: React.FC = () => {
                           className={`inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold border ${
                             isOutOfStock
                               ? 'bg-[#f97386]/20 text-[#a8364b] border-[#f97386]/40'
-                              : product.stock <= (product.minStock || 10)
+                              : isLowStock
                               ? 'bg-amber-100 text-amber-800 border-amber-300'
                               : 'bg-[#6bffc1]/20 text-[#006d4b] border-[#6bffc1]/30'
                           }`}
@@ -250,7 +378,35 @@ export const ProductsView: React.FC = () => {
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                          {/* Quick Restock Button */}
                           <button
+                            type="button"
+                            onClick={() => {
+                              setRestockTarget(product);
+                              setRestockQty(10);
+                              setRestockReason('Restock / Pembelian');
+                            }}
+                            className="p-2 text-[#5d5e6c] hover:text-[#006d4b] hover:bg-[#6bffc1]/20 rounded-lg transition-colors cursor-pointer"
+                            title="Atur / Tambah Stok Cepat"
+                          >
+                            <PackagePlus className="w-4 h-4" />
+                          </button>
+
+                          {/* Cetak Barcode Produk */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBarcodeModalProduct(product);
+                              setShowBarcodeModal(true);
+                            }}
+                            className="p-2 text-[#5d5e6c] hover:text-[#684cb6] hover:bg-[#a589f8]/15 rounded-lg transition-colors cursor-pointer"
+                            title="Tampilkan & Cetak Label Barcode"
+                          >
+                            <BarcodeIcon className="w-4 h-4 text-[#684cb6]" />
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => handleOpenEditModal(product)}
                             className="p-2 text-[#5d5e6c] hover:text-[#684cb6] hover:bg-[#f4f2fe] rounded-lg transition-colors cursor-pointer"
                             title="Edit Produk"
@@ -258,6 +414,7 @@ export const ProductsView: React.FC = () => {
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => {
                               setProductToDelete(product);
                               setShowDeleteModal(true);
@@ -272,6 +429,28 @@ export const ProductsView: React.FC = () => {
                     </tr>
                   );
                 })
+              ) : products.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-12 text-center">
+                    <div className="flex flex-col items-center justify-center max-w-md mx-auto">
+                      <div className="w-16 h-16 rounded-2xl bg-[#f4f2fe] text-[#684cb6] flex items-center justify-center mb-4">
+                        <PackageX className="w-8 h-8" />
+                      </div>
+                      <h4 className="text-base font-bold text-[#30323e] mb-1">Semua Produk Telah Dikosongkan</h4>
+                      <p className="text-xs text-[#5d5e6c] mb-5 leading-relaxed">
+                        Basis data produk saat ini kosong (0 barang). Silakan tambahkan produk baru untuk mulai mencatat stok dan transaksi penjualan.
+                      </p>
+                      <button
+                        id="btn-tambah-produk-empty"
+                        onClick={handleOpenAddModal}
+                        className="bg-[#684cb6] hover:bg-[#5b3fa9] active:scale-[0.98] text-[#fdf7ff] font-semibold text-xs px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Tambah Produk Baru</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               ) : (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-sm text-[#5d5e6c]">
@@ -294,6 +473,7 @@ export const ProductsView: React.FC = () => {
                 {editingProduct ? 'Edit Produk' : 'Tambah Produk Baru'}
               </h3>
               <button
+                type="button"
                 onClick={() => setShowAddEditModal(false)}
                 className="p-1 rounded-lg text-[#5d5e6c] hover:bg-[#f4f2fe]"
               >
@@ -326,7 +506,7 @@ export const ProductsView: React.FC = () => {
                           key={i}
                           type="button"
                           onClick={() => setFormData({ ...formData, image: img.url })}
-                          className={`px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-colors ${
+                          className={`px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-colors cursor-pointer ${
                             formData.image === img.url
                               ? 'bg-[#684cb6] text-white border-[#684cb6]'
                               : 'bg-[#f4f2fe] text-[#5d5e6c] border-[#e2e1f2] hover:bg-[#e2e1f2]'
@@ -367,17 +547,50 @@ export const ProductsView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[#5d5e6c] mb-1.5">
-                    SKU (Kode Unik) <span className="text-[#a8364b]">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                    placeholder="Contoh: KRT-A4-01"
-                    className="w-full h-11 px-4 rounded-xl border border-[#e2e1f2] focus:border-[#684cb6] focus:ring-1 focus:ring-[#684cb6] outline-none text-sm font-mono"
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-[#5d5e6c]">
+                      Barcode / SKU <span className="text-[#a8364b]">*</span>
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsFormScannerOpen(true)}
+                        className="text-[11px] font-semibold text-[#684cb6] hover:bg-[#a589f8]/15 px-2 py-0.5 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Scan Barcode Kemasan Fisik Menggunakan Kamera"
+                      >
+                        <Scan className="w-3 h-3" /> Scan Barcode
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleGenerateSku}
+                        className="text-[11px] font-semibold text-[#684cb6] hover:underline flex items-center gap-1 cursor-pointer"
+                        title="Generate Barcode / SKU Otomatis"
+                      >
+                        <Wand2 className="w-3 h-3" /> Auto
+                      </button>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={formData.sku}
+                      onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                      placeholder="Contoh: 8991002102938 atau KRT-A4-01"
+                      className="w-full h-11 pl-4 pr-10 rounded-xl border border-[#e2e1f2] focus:border-[#684cb6] focus:ring-1 focus:ring-[#684cb6] outline-none text-sm font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsFormScannerOpen(true)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#797988] hover:text-[#684cb6] transition-colors cursor-pointer"
+                      title="Buka Kamera Barcode"
+                    >
+                      <Scan className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-[#797988] mt-1">
+                    Bisa scan langsung barcode kemasan fisik barang atau generate otomatis.
+                  </p>
                 </div>
 
                 <div>
@@ -416,7 +629,7 @@ export const ProductsView: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-[#5d5e6c] mb-1.5">
-                    Stok Awal <span className="text-[#a8364b]">*</span>
+                    Stok Sekarang <span className="text-[#a8364b]">*</span>
                   </label>
                   <input
                     type="number"
@@ -427,6 +640,19 @@ export const ProductsView: React.FC = () => {
                     className="w-full h-11 px-4 rounded-xl border border-[#e2e1f2] focus:border-[#684cb6] focus:ring-1 focus:ring-[#684cb6] outline-none text-sm font-semibold"
                   />
                 </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-[#5d5e6c] mb-1.5">
+                    Batas Minimum Stok (Peringatan Menipis)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.minStock}
+                    onChange={(e) => setFormData({ ...formData, minStock: Number(e.target.value) })}
+                    className="w-full h-11 px-4 rounded-xl border border-[#e2e1f2] focus:border-[#684cb6] outline-none text-sm"
+                  />
+                </div>
               </div>
 
               {/* Modal Footer */}
@@ -434,15 +660,92 @@ export const ProductsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddEditModal(false)}
-                  className="px-5 h-11 rounded-xl border border-[#e2e1f2] text-xs font-semibold text-[#5d5e6c] hover:bg-[#f4f2fe] transition-colors"
+                  className="px-5 h-11 rounded-xl border border-[#e2e1f2] text-xs font-semibold text-[#5d5e6c] hover:bg-[#f4f2fe] transition-colors cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-6 h-11 rounded-xl bg-[#684cb6] hover:bg-[#5b3fa9] text-white text-xs font-semibold shadow-xs transition-colors"
+                  className="px-6 h-11 rounded-xl bg-[#684cb6] hover:bg-[#5b3fa9] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                 >
                   {editingProduct ? 'Simpan Perubahan' : 'Simpan Produk'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Restock Modal */}
+      {restockTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border border-[#e2e1f2] shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-base font-bold text-[#30323e] flex items-center gap-2">
+                <PackagePlus className="w-5 h-5 text-[#684cb6]" />
+                Atur Stok Barang
+              </h3>
+              <button
+                type="button"
+                onClick={() => setRestockTarget(null)}
+                className="p-1 rounded-lg text-[#797988] hover:text-[#30323e]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-[#fbf8ff] p-3 rounded-xl border border-[#e2e1f2] mb-4">
+              <p className="font-semibold text-xs text-[#30323e]">{restockTarget.name}</p>
+              <p className="text-[11px] text-[#5d5e6c]">Stok saat ini: <strong className="text-[#684cb6] font-bold">{restockTarget.stock} unit</strong></p>
+            </div>
+
+            <form onSubmit={handleQuickRestockSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#5d5e6c] mb-1.5">
+                  Jumlah Tambahan / Penyesuaian (+ atau -)
+                </label>
+                <input
+                  type="number"
+                  required
+                  value={restockQty}
+                  onChange={(e) => setRestockQty(Number(e.target.value))}
+                  className="w-full h-11 px-4 rounded-xl border border-[#e2e1f2] text-sm font-bold text-[#30323e] focus:border-[#684cb6] outline-none"
+                  placeholder="Contoh: 20 atau -5"
+                />
+                <p className="text-[11px] text-[#797988] mt-1">
+                  Stok baru akan menjadi: <strong className="text-[#30323e]">{Math.max(0, restockTarget.stock + Number(restockQty || 0))} unit</strong>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#5d5e6c] mb-1.5">
+                  Alasan Penyesuaian
+                </label>
+                <select
+                  value={restockReason}
+                  onChange={(e) => setRestockReason(e.target.value)}
+                  className="w-full h-11 px-4 rounded-xl border border-[#e2e1f2] text-xs text-[#30323e] bg-white outline-none cursor-pointer"
+                >
+                  <option value="Restock / Pembelian">Restock / Pembelian Supplier</option>
+                  <option value="Koreksi Stok">Koreksi Stok Opname</option>
+                  <option value="Barang Rusak / Kadaluarsa">Barang Rusak / Kadaluarsa</option>
+                  <option value="Lainnya">Lainnya</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRestockTarget(null)}
+                  className="px-4 py-2.5 rounded-xl border border-[#e2e1f2] text-xs font-semibold text-[#5d5e6c] hover:bg-[#f4f2fe] cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-[#684cb6] hover:bg-[#5b3fa9] text-white text-xs font-bold shadow-xs cursor-pointer"
+                >
+                  Terapkan Stok
                 </button>
               </div>
             </form>
@@ -463,20 +766,88 @@ export const ProductsView: React.FC = () => {
             </p>
             <div className="flex gap-3">
               <button
+                type="button"
                 onClick={() => setShowDeleteModal(false)}
-                className="flex-1 h-11 rounded-xl border border-[#e2e1f2] text-xs font-semibold text-[#5d5e6c] hover:bg-[#f4f2fe] transition-colors"
+                className="flex-1 h-11 rounded-xl border border-[#e2e1f2] text-xs font-semibold text-[#5d5e6c] hover:bg-[#f4f2fe] transition-colors cursor-pointer"
               >
                 Batal
               </button>
               <button
+                type="button"
                 onClick={handleDeleteConfirm}
-                className="flex-1 h-11 rounded-xl bg-[#a8364b] hover:bg-[#6e0523] text-white text-xs font-semibold shadow-xs transition-colors"
+                className="flex-1 h-11 rounded-xl bg-[#a8364b] hover:bg-[#6e0523] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               >
                 Hapus
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Clear All Confirmation Modal */}
+      {showClearAllModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border border-[#e2e1f2] shadow-2xl text-center animate-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 rounded-full bg-[#f97386]/20 text-[#a8364b] mx-auto flex items-center justify-center mb-4">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-bold text-[#30323e] mb-2">Kosongkan Semua Produk?</h3>
+            <p className="text-xs text-[#5d5e6c] mb-6 leading-relaxed">
+              Tindakan ini akan <strong className="text-[#a8364b]">menghapus seluruh {products.length} produk</strong> dari database. Produk yang sudah dihapus tidak dapat dipulihkan. Apakah Anda yakin?
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                disabled={isClearing}
+                onClick={() => setShowClearAllModal(false)}
+                className="flex-1 h-11 rounded-xl border border-[#e2e1f2] text-xs font-semibold text-[#5d5e6c] hover:bg-[#f4f2fe] transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isClearing}
+                onClick={handleClearAllConfirm}
+                className="flex-1 h-11 rounded-xl bg-[#a8364b] hover:bg-[#6e0523] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {isClearing ? (
+                  <span>Mengosongkan...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Ya, Kosongkan</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Barcode Label Generator & Print Modal */}
+      {showBarcodeModal && (
+        <BarcodeLabelModal
+          isOpen={showBarcodeModal}
+          onClose={() => {
+            setShowBarcodeModal(false);
+            setBarcodeModalProduct(null);
+          }}
+          product={barcodeModalProduct}
+          allProducts={products}
+        />
+      )}
+
+      {/* Form Barcode Camera Scanner Modal */}
+      {isFormScannerOpen && (
+        <BarcodeScannerModal
+          isOpen={isFormScannerOpen}
+          onClose={() => setIsFormScannerOpen(false)}
+          onScanResult={(scannedCode) => {
+            setFormData((prev) => ({ ...prev, sku: scannedCode }));
+            setIsFormScannerOpen(false);
+          }}
+          title="Scan Barcode Kemasan Produk"
+          subtitle="Arahkan kamera ke barcode kemasan barang untuk otomatis mengisi kolom SKU"
+        />
       )}
     </div>
   );

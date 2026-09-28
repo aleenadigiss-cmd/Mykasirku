@@ -45,12 +45,14 @@ interface PosContextType {
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (id: number | string, updated: Partial<Product>) => void;
   deleteProduct: (id: number | string) => void;
+  clearAllProducts: () => Promise<boolean>;
   restockProduct: (id: number | string, amount: number, reason?: string) => void;
 
   // Categories
   categories: Category[];
-  addCategory: (name: string, icon?: string) => void;
-  deleteCategory: (id: string) => void;
+  addCategory: (name: string, icon?: string) => Promise<boolean>;
+  updateCategory: (id: string, name: string, icon?: string) => Promise<boolean>;
+  deleteCategory: (id: string) => Promise<boolean>;
 
   // Cart & POS checkout
   cart: CartItem[];
@@ -73,6 +75,8 @@ interface PosContextType {
     notes?: string
   ) => Transaction;
   cancelTransaction: (id: string) => void;
+  updateTransaction: (id: string, updated: { notes?: string }) => Promise<boolean>;
+  deleteTransaction: (id: string) => Promise<boolean>;
 
   // Cashiers & Register Shift
   cashiers: CashierUser[];
@@ -105,7 +109,14 @@ interface PosContextType {
     email?: string;
     phone?: string;
   }) => { success: boolean; message: string; user?: AuthUser };
+  updateUser: (id: string, updated: Partial<AuthUser>) => { success: boolean; message: string };
+  deleteUser: (id: string) => { success: boolean; message: string };
   logout: () => void;
+
+  // Toast Notification
+  toast: { message: string; type: 'success' | 'error' | 'info' } | null;
+  showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+  hideToast: () => void;
 
   // Modal helpers
   lastCompletedTransaction: Transaction | null;
@@ -115,6 +126,12 @@ interface PosContextType {
 
   // Reset to initial
   resetDemoData: () => void;
+
+  // Turso Cloud Database
+  isTursoConnected: boolean;
+  tursoStatus: 'connected' | 'connecting' | 'error';
+  lastSyncTime: string | null;
+  syncWithTurso: () => Promise<void>;
 }
 
 const PosContext = createContext<PosContextType | undefined>(undefined);
@@ -125,10 +142,34 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const toggleSidebar = () => setSidebarCollapsed((prev) => !prev);
 
+  // Toast notification state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast((cur) => (cur?.message === message ? null : cur));
+    }, 3500);
+  };
+
+  const hideToast = () => setToast(null);
+
+  // Turso connection state
+  const [isTursoConnected, setIsTursoConnected] = useState<boolean>(true);
+  const [tursoStatus, setTursoStatus] = useState<'connected' | 'connecting' | 'error'>('connecting');
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+
   // Initial local state with localStorage caching
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('kasirku_products');
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return [];
+      }
+    }
+    return [];
   });
 
   const [categories, setCategories] = useState<Category[]>(() => {
@@ -278,15 +319,8 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Initial cart with items shown in Screen 3 mockup: Kertas HVS A4 (qty 2) + Air Mineral (qty 3)
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    const initialHvs = INITIAL_PRODUCTS.find((p) => p.sku === 'SKU-AT-042') || INITIAL_PRODUCTS[4];
-    const initialAir = INITIAL_PRODUCTS.find((p) => p.sku === 'SKU-MN-005') || INITIAL_PRODUCTS[6];
-    return [
-      { product: initialHvs, quantity: 2 },
-      { product: initialAir, quantity: 3 },
-    ];
-  });
+  // Initial cart
+  const [cart, setCart] = useState<CartItem[]>([]);
 
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(
     INITIAL_TRANSACTIONS[0]
@@ -318,6 +352,51 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('kasirku_stock_logs', JSON.stringify(stockLogs));
   }, [stockLogs]);
+
+  // Initial and on-demand synchronization with Turso LibSQL Cloud
+  const syncWithTurso = async () => {
+    try {
+      setTursoStatus('connecting');
+      const res = await fetch('/api/sync');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        if (Array.isArray(json.data.products)) {
+          setProducts(json.data.products);
+        }
+        if (json.data.categories && json.data.categories.length > 0) {
+          setCategories(json.data.categories);
+        }
+        if (json.data.transactions && json.data.transactions.length > 0) {
+          setTransactions(json.data.transactions);
+        }
+        if (json.data.users && json.data.users.length > 0) {
+          setUsers(json.data.users);
+        }
+        if (json.data.settings) {
+          setSettings(json.data.settings);
+        }
+        if (json.data.stockLogs && json.data.stockLogs.length > 0) {
+          setStockLogs(json.data.stockLogs);
+        }
+        if (json.data.shift) {
+          setIsRegisterOpen(json.data.shift.isOpen);
+          setRegisterStartingCash(json.data.shift.startingCash);
+        }
+        setIsTursoConnected(true);
+        setTursoStatus('connected');
+        setLastSyncTime(new Date().toLocaleTimeString('id-ID'));
+      }
+    } catch (err) {
+      console.warn('Turso sync offline or initial connect fallback:', err);
+      setIsTursoConnected(false);
+      setTursoStatus('error');
+    }
+  };
+
+  useEffect(() => {
+    syncWithTurso();
+  }, []);
 
   // Cart Calculations
   const cartSubtotal = cart.reduce(
@@ -368,7 +447,7 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCart([]);
   };
 
-  // Product management
+  // Product management (Synced with Turso)
   const addProduct = (newProd: Omit<Product, 'id'>) => {
     const nextId = products.length > 0 ? Math.max(...products.map((p) => Number(p.id) || 0)) + 1 : 1;
     const created: Product = {
@@ -398,17 +477,62 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       user: activeCashier.name,
     };
     setStockLogs((prev) => [log, ...prev]);
+
+    // Send to Turso backend
+    fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(created),
+    }).catch((err) => console.error('Turso addProduct error:', err));
+
+    showToast(`Produk "${created.name}" berhasil disimpan ke database!`, 'success');
   };
 
   const updateProduct = (id: number | string, updated: Partial<Product>) => {
+    const prevProduct = products.find((p) => p.id === id);
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, ...updated } : p))
     );
+
+    // Send to Turso backend
+    fetch(`/api/products/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    }).catch((err) => console.error('Turso updateProduct error:', err));
+
+    showToast(`Produk "${updated.name || prevProduct?.name || 'Produk'}" berhasil diperbarui!`, 'success');
   };
 
   const deleteProduct = (id: number | string) => {
+    const prod = products.find((p) => p.id === id);
     setProducts((prev) => prev.filter((p) => p.id !== id));
     removeFromCart(id);
+
+    // Send to Turso backend
+    fetch(`/api/products/${id}`, {
+      method: 'DELETE',
+    }).catch((err) => console.error('Turso deleteProduct error:', err));
+
+    showToast(`Produk "${prod?.name || id}" berhasil dihapus!`, 'info');
+  };
+
+  const clearAllProducts = async (): Promise<boolean> => {
+    setProducts([]);
+    setCart([]);
+    localStorage.setItem('kasirku_products', JSON.stringify([]));
+
+    try {
+      await fetch('/api/products', {
+        method: 'DELETE',
+      });
+      showToast('Semua produk berhasil dikosongkan dari database!', 'info');
+      return true;
+    } catch (err) {
+      console.error('Turso clearAllProducts error:', err);
+      showToast('Semua produk di sistem telah dikosongkan.', 'info');
+      return true;
+    }
   };
 
   const restockProduct = (id: number | string, amount: number, reason = 'Restock / Pembelian') => {
@@ -418,7 +542,9 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const previousStock = prod.stock;
     const newStock = Math.max(0, previousStock + amount);
 
-    updateProduct(id, { stock: newStock });
+    setProducts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, stock: newStock } : p))
+    );
 
     const log: StockLog = {
       id: `LOG-${Date.now()}`,
@@ -438,18 +564,115 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       user: activeCashier.name,
     };
     setStockLogs((prev) => [log, ...prev]);
+
+    // Send to Turso backend
+    fetch(`/api/products/${id}/restock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount,
+        reason,
+        user: activeCashier.name,
+      }),
+    }).catch((err) => console.error('Turso restockProduct error:', err));
+
+    showToast(`Stok "${prod.name}" disesuaikan: ${amount > 0 ? '+' + amount : amount} (Total: ${newStock})`, 'success');
   };
 
   // Category management
-  const addCategory = (name: string, icon = 'category') => {
-    const id = name.toLowerCase().replace(/\s+/g, '-');
-    if (categories.some((c) => c.name.toLowerCase() === name.toLowerCase())) return;
-    setCategories((prev) => [...prev, { id, name, icon }]);
+  const addCategory = async (name: string, icon = 'category'): Promise<boolean> => {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    const id = trimmed.toLowerCase().replace(/\s+/g, '-');
+    if (categories.some((c) => c.name.toLowerCase() === trimmed.toLowerCase() || c.id === id)) {
+      showToast(`Kategori "${trimmed}" sudah ada!`, 'error');
+      return false;
+    }
+
+    const newCat: Category = { id, name: trimmed, icon };
+    setCategories((prev) => [...prev, newCat]);
+    showToast(`Kategori "${trimmed}" berhasil ditambahkan!`, 'success');
+
+    try {
+      await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed, icon }),
+      });
+      return true;
+    } catch (err) {
+      console.error('Turso addCategory error:', err);
+      return true;
+    }
   };
 
-  const deleteCategory = (id: string) => {
-    if (id === 'all') return;
+  const updateCategory = async (id: string, newName: string, icon?: string): Promise<boolean> => {
+    const trimmed = newName.trim();
+    if (!trimmed || id === 'all') return false;
+
+    const oldCat = categories.find((c) => c.id === id);
+    const oldName = oldCat?.name;
+
+    setCategories((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? { ...c, name: trimmed, icon: icon || c.icon }
+          : c
+      )
+    );
+
+    // If category name changed, update all products that belong to it
+    if (oldName && oldName.toLowerCase() !== trimmed.toLowerCase()) {
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.category.toLowerCase() === oldName.toLowerCase()
+            ? { ...p, category: trimmed }
+            : p
+        )
+      );
+    }
+
+    showToast(`Kategori "${trimmed}" berhasil diperbarui!`, 'success');
+
+    try {
+      await fetch(`/api/categories/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed, icon }),
+      });
+      return true;
+    } catch (err) {
+      console.error('Turso updateCategory error:', err);
+      return true;
+    }
+  };
+
+  const deleteCategory = async (id: string): Promise<boolean> => {
+    if (id === 'all') return false;
+    const target = categories.find((c) => c.id === id);
+    const targetName = target?.name || id;
+
+    // Check if any products use this category; if so reassign them to 'Umum'
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.category.toLowerCase() === targetName.toLowerCase()
+          ? { ...p, category: 'Umum' }
+          : p
+      )
+    );
+
     setCategories((prev) => prev.filter((c) => c.id !== id));
+    showToast(`Kategori "${targetName}" berhasil dihapus!`, 'info');
+
+    try {
+      await fetch(`/api/categories/${id}`, {
+        method: 'DELETE',
+      });
+      return true;
+    } catch (err) {
+      console.error('Turso deleteCategory error:', err);
+      return true;
+    }
   };
 
   // Checkout process
@@ -524,6 +747,13 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setShowCheckoutSuccessModal(true);
     clearCart();
 
+    // Persist transaction to Turso database
+    fetch('/api/transactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newTx),
+    }).catch((err) => console.error('Turso completeCheckout error:', err));
+
     return newTx;
   };
 
@@ -531,20 +761,81 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTransactions((prev) =>
       prev.map((t) => (t.id === id ? { ...t, status: 'Batal' } : t))
     );
+    showToast(`Transaksi #${id} dibatalkan & stok dikembalikan!`, 'info');
+
+    fetch(`/api/transactions/${id}/cancel`, {
+      method: 'POST',
+    }).catch((err) => console.error('Turso cancelTransaction error:', err));
+  };
+
+  const updateTransaction = async (id: string, updated: { notes?: string }): Promise<boolean> => {
+    setTransactions((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, notes: updated.notes } : t))
+    );
+    if (selectedTransaction?.id === id) {
+      setSelectedTransaction((prev) => (prev ? { ...prev, notes: updated.notes } : null));
+    }
+    showToast(`Catatan transaksi #${id} diperbarui!`, 'success');
+
+    try {
+      await fetch(`/api/transactions/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      return true;
+    } catch (err) {
+      console.error('Turso updateTransaction error:', err);
+      return true;
+    }
+  };
+
+  const deleteTransaction = async (id: string): Promise<boolean> => {
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    if (selectedTransaction?.id === id) {
+      setSelectedTransaction(null);
+    }
+    showToast(`Transaksi #${id} telah dihapus!`, 'info');
+
+    try {
+      await fetch(`/api/transactions/${id}`, {
+        method: 'DELETE',
+      });
+      return true;
+    } catch (err) {
+      console.error('Turso deleteTransaction error:', err);
+      return true;
+    }
   };
 
   const openRegister = (startingCash: number) => {
     setIsRegisterOpen(true);
     setRegisterStartingCash(startingCash);
     setShowOpenRegisterModal(false);
+
+    fetch('/api/shift/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startingCash, cashier: activeCashier.name }),
+    }).catch((err) => console.error('Turso openRegister error:', err));
   };
 
   const closeRegister = () => {
     setIsRegisterOpen(false);
+
+    fetch('/api/shift/close', {
+      method: 'POST',
+    }).catch((err) => console.error('Turso closeRegister error:', err));
   };
 
   const updateSettings = (updated: Partial<StoreSettings>) => {
     setSettings((prev) => ({ ...prev, ...updated }));
+
+    fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    }).catch((err) => console.error('Turso updateSettings error:', err));
   };
 
   // Auth & RBAC actions
@@ -631,11 +922,63 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updated = [...users, newUser];
     setUsers(updated);
 
+    fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newUser),
+    }).catch((err) => console.error('Turso registerUser error:', err));
+
     return {
       success: true,
       message: `Akun "${cleanUser}" (${data.role}) berhasil didaftarkan! Silakan masuk.`,
       user: newUser,
     };
+  };
+
+  const updateUser = (id: string, updated: Partial<AuthUser>): { success: boolean; message: string } => {
+    const target = users.find((u) => u.id === id);
+    if (!target) return { success: false, message: 'Petugas tidak ditemukan' };
+
+    const newUsers = users.map((u) => (u.id === id ? { ...u, ...updated } : u));
+    setUsers(newUsers);
+
+    if (currentUser?.id === id) {
+      setCurrentUser((prev) => (prev ? { ...prev, ...updated } : null));
+    }
+
+    showToast(`Data petugas "${updated.name || target.name}" diperbarui!`, 'success');
+
+    fetch(`/api/users/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    }).catch((err) => console.error('Turso updateUser error:', err));
+
+    return { success: true, message: 'Data petugas berhasil diperbarui' };
+  };
+
+  const deleteUser = (id: string): { success: boolean; message: string } => {
+    if (currentUser?.id === id) {
+      return { success: false, message: 'Anda tidak dapat menghapus akun Anda sendiri saat sedang aktif!' };
+    }
+
+    const target = users.find((u) => u.id === id);
+    if (!target) return { success: false, message: 'Petugas tidak ditemukan' };
+
+    const adminCount = users.filter((u) => u.role === 'Super Admin').length;
+    if (target.role === 'Super Admin' && adminCount <= 1) {
+      return { success: false, message: 'Tidak dapat menghapus Super Admin terakhir sistem!' };
+    }
+
+    const newUsers = users.filter((u) => u.id !== id);
+    setUsers(newUsers);
+    showToast(`Petugas "${target.name}" berhasil dihapus!`, 'info');
+
+    fetch(`/api/users/${id}`, {
+      method: 'DELETE',
+    }).catch((err) => console.error('Turso deleteUser error:', err));
+
+    return { success: true, message: `Petugas "${target.name}" berhasil dihapus.` };
   };
 
   const logout = () => {
@@ -654,6 +997,10 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem('kasirku_transactions');
     localStorage.removeItem('kasirku_settings');
     localStorage.removeItem('kasirku_stock_logs');
+
+    fetch('/api/reset', {
+      method: 'POST',
+    }).catch((err) => console.error('Turso resetDemoData error:', err));
   };
 
   return (
@@ -670,9 +1017,11 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addProduct,
         updateProduct,
         deleteProduct,
+        clearAllProducts,
         restockProduct,
         categories,
         addCategory,
+        updateCategory,
         deleteCategory,
         cart,
         addToCart,
@@ -688,6 +1037,8 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedTransaction,
         completeCheckout,
         cancelTransaction,
+        updateTransaction,
+        deleteTransaction,
         cashiers,
         activeCashier,
         setActiveCashier,
@@ -696,7 +1047,12 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         users,
         login,
         registerUser,
+        updateUser,
+        deleteUser,
         logout,
+        toast,
+        showToast,
+        hideToast,
         isRegisterOpen,
         registerStartingCash,
         openRegister,
@@ -711,6 +1067,10 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showCheckoutSuccessModal,
         setShowCheckoutSuccessModal,
         resetDemoData,
+        isTursoConnected,
+        tursoStatus,
+        lastSyncTime,
+        syncWithTurso,
       }}
     >
       {children}

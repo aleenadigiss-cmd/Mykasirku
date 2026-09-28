@@ -16,6 +16,8 @@ import {
   Send,
   CheckCircle2,
   Share2,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -44,6 +46,7 @@ export const HistoryReportView: React.FC<HistoryReportViewProps> = ({ initialTab
     selectedTransaction,
     setSelectedTransaction,
     cancelTransaction,
+    deleteTransaction,
     products,
     cashiers,
     settings,
@@ -59,6 +62,11 @@ export const HistoryReportView: React.FC<HistoryReportViewProps> = ({ initialTab
     'Minggu Ini'
   );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    type: 'cancel' | 'delete';
+    transactionId: string;
+  }>({ isOpen: false, type: 'cancel', transactionId: '' });
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -423,19 +431,36 @@ export const HistoryReportView: React.FC<HistoryReportViewProps> = ({ initialTab
               </div>
 
               {/* Receipt Action Footer */}
-              <div className="p-4 border-t border-[#e2e1f2] bg-[#fbf8ff] flex gap-2">
+              <div className="p-4 border-t border-[#e2e1f2] bg-[#fbf8ff] flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    if (window.confirm('Batalkan transaksi ini?')) {
-                      cancelTransaction(activeReceipt.id);
-                      showToast('Transaksi telah dibatalkan.');
-                    }
-                  }}
+                  type="button"
+                  onClick={() =>
+                    setConfirmModal({
+                      isOpen: true,
+                      type: 'cancel',
+                      transactionId: activeReceipt.id,
+                    })
+                  }
                   className="flex-1 py-2.5 border border-[#f97386] text-[#a8364b] hover:bg-[#f97386]/15 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
                   Batalkan
                 </button>
                 <button
+                  type="button"
+                  onClick={() =>
+                    setConfirmModal({
+                      isOpen: true,
+                      type: 'delete',
+                      transactionId: activeReceipt.id,
+                    })
+                  }
+                  title="Hapus Transaksi Permanen"
+                  className="p-2.5 border border-[#e2e1f2] text-[#797988] hover:text-[#a8364b] hover:bg-[#f97386]/10 rounded-xl transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
                   onClick={() => showToast('Struk berhasil dibagikan.')}
                   className="flex-1 py-2.5 bg-[#684cb6] hover:bg-[#5b3fa9] text-white rounded-xl text-xs font-bold transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
                 >
@@ -602,9 +627,53 @@ export const HistoryReportView: React.FC<HistoryReportViewProps> = ({ initialTab
 
               <button
                 onClick={() => setActiveTab('produk')}
-                className="w-full mt-4 py-2 text-center text-xs font-bold text-[#684cb6] hover:underline"
+                className="w-full mt-4 py-2 text-center text-xs font-bold text-[#684cb6] hover:underline cursor-pointer"
               >
                 Lihat Semua Produk
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border border-[#e2e1f2] shadow-2xl text-center animate-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 rounded-full bg-[#f97386]/20 text-[#a8364b] mx-auto flex items-center justify-center mb-4">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-bold text-[#30323e] mb-2">
+              {confirmModal.type === 'cancel' ? 'Batalkan Transaksi?' : 'Hapus Transaksi?'}
+            </h3>
+            <p className="text-xs text-[#5d5e6c] mb-6 leading-relaxed">
+              {confirmModal.type === 'cancel'
+                ? `Apakah Anda yakin ingin membatalkan transaksi "${confirmModal.transactionId}"? Stok produk akan dikembalikan otomatis ke sistem.`
+                : `Apakah Anda yakin ingin menghapus data transaksi "${confirmModal.transactionId}" dari database secara permanen?`}
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmModal({ isOpen: false, type: 'cancel', transactionId: '' })}
+                className="flex-1 h-11 rounded-xl border border-[#e2e1f2] text-xs font-semibold text-[#5d5e6c] hover:bg-[#f4f2fe] transition-colors cursor-pointer"
+              >
+                Kembali
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (confirmModal.type === 'cancel') {
+                    await cancelTransaction(confirmModal.transactionId);
+                    showToast('Transaksi berhasil dibatalkan.');
+                  } else {
+                    await deleteTransaction(confirmModal.transactionId);
+                    showToast('Transaksi berhasil dihapus.');
+                  }
+                  setConfirmModal({ isOpen: false, type: 'cancel', transactionId: '' });
+                }}
+                className="flex-1 h-11 rounded-xl bg-[#a8364b] hover:bg-[#6e0523] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              >
+                {confirmModal.type === 'cancel' ? 'Ya, Batalkan' : 'Ya, Hapus'}
               </button>
             </div>
           </div>

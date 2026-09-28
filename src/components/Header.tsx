@@ -12,6 +12,8 @@ import {
   Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
+  Database,
+  RefreshCw,
 } from 'lucide-react';
 import { usePos } from '../context/PosContext';
 
@@ -34,6 +36,9 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
     toggleSidebar,
     logout,
     currentUser,
+    tursoStatus,
+    lastSyncTime,
+    syncWithTurso,
   } = usePos();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -109,7 +114,51 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
       </div>
 
       {/* Right: Notifications, Cashier profile & Demo controls */}
-      <div className="flex items-center gap-3 md:gap-5">
+      <div className="flex items-center gap-3 md:gap-4">
+        {/* Turso Cloud Database Status Badge */}
+        <div
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full border transition-all ${
+            tursoStatus === 'connected'
+              ? 'bg-[#006d4b]/10 text-[#006d4b] border-[#006d4b]/20'
+              : tursoStatus === 'connecting'
+              ? 'bg-amber-500/10 text-amber-700 border-amber-500/20'
+              : 'bg-[#a8364b]/10 text-[#a8364b] border-[#a8364b]/20'
+          }`}
+          title={
+            tursoStatus === 'connected'
+              ? `Terhubung ke Turso Cloud DB (libsql://mykasirdb-aleenadigiss.aws-ap-northeast-1.turso.io). Terakhir sinkron: ${lastSyncTime || 'Baru saja'}`
+              : tursoStatus === 'connecting'
+              ? 'Menghubungkan ke Turso Cloud...'
+              : 'Mode Offline (Lokal)'
+          }
+        >
+          <span className="relative flex h-2 w-2">
+            {tursoStatus === 'connected' && (
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            )}
+            <span
+              className={`relative inline-flex rounded-full h-2 w-2 ${
+                tursoStatus === 'connected'
+                  ? 'bg-[#006d4b]'
+                  : tursoStatus === 'connecting'
+                  ? 'bg-amber-500 animate-pulse'
+                  : 'bg-[#a8364b]'
+              }`}
+            ></span>
+          </span>
+          <Database className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">
+            {tursoStatus === 'connected' ? 'Turso Cloud' : tursoStatus === 'connecting' ? 'Menghubungkan...' : 'Turso Offline'}
+          </span>
+          <button
+            onClick={() => syncWithTurso()}
+            className="hover:rotate-180 transition-transform duration-500 opacity-70 hover:opacity-100 ml-0.5 cursor-pointer"
+            title="Klik untuk sinkronisasi manual sekarang"
+          >
+            <RefreshCw className={`w-3 h-3 ${tursoStatus === 'connecting' ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+
         {/* Reset Demo Data Pill */}
         <button
           onClick={() => {

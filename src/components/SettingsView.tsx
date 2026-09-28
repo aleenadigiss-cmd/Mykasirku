@@ -12,14 +12,38 @@ import {
   Trash2,
   QrCode,
   Download,
+  Database,
+  RefreshCw,
+  Server,
 } from 'lucide-react';
 import { usePos } from '../context/PosContext';
 import { CashierProfile } from '../types';
 import { QrisBarcodeCard } from './QrisBarcodeCard';
 
 export const SettingsView: React.FC = () => {
-  const { settings, updateSettings, cashiers, activeCashier, setActiveCashier, resetDemoData } =
-    usePos();
+  const {
+    settings,
+    updateSettings,
+    cashiers,
+    activeCashier,
+    setActiveCashier,
+    resetDemoData,
+    products,
+    categories,
+    transactions,
+    users,
+    tursoStatus,
+    lastSyncTime,
+    syncWithTurso,
+  } = usePos();
+
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    await syncWithTurso();
+    setTimeout(() => setIsSyncing(false), 600);
+  };
 
   const [formData, setFormData] = useState({
     storeName: settings.storeName,
@@ -258,6 +282,97 @@ export const SettingsView: React.FC = () => {
 
               <div className="bg-[#fff7ed] p-3.5 rounded-xl border border-[#ffedd5] text-[#9a3412] text-[11px] leading-relaxed">
                 <strong>Tips Kasir:</strong> Pada layar Transaksi Kasir (POS), ketika metode <strong>QRIS</strong> dipilih, sistem secara otomatis menghasilkan Barcode QRIS Dinamis lengkap dengan nominal total belanja pelanggan. Kasir juga dapat menekan tombol <strong>"Barcode QRIS"</strong> di bilah atas untuk menampilkan QR ukuran besar kepada pelanggan.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Database Cloud: Turso LibSQL Section */}
+        <div className="bg-white p-6 rounded-2xl border border-[#e2e1f2] shadow-xs">
+          <div className="flex items-center justify-between border-b border-[#e2e1f2] pb-4 mb-4">
+            <div className="flex items-center gap-2 text-base font-bold text-[#30323e]">
+              <div className="w-8 h-8 rounded-lg bg-[#684cb6]/10 text-[#684cb6] flex items-center justify-center">
+                <Database className="w-4 h-4" />
+              </div>
+              <div>
+                <h3>Database Cloud (Turso LibSQL)</h3>
+                <p className="text-xs font-normal text-[#797988]">
+                  Penyimpanan cloud terdistribusi dengan latensi rendah dan sinkronisasi real-time
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#f4f2fe] text-[#684cb6] hover:bg-[#e2e1f2] border border-[#e2e1f2] transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Menyinkronkan...' : 'Sinkronkan Sekarang'}</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div className="p-3.5 bg-[#fbf8ff] rounded-xl border border-[#e2e1f2]/60 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-[#797988]">Status Koneksi:</span>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
+                    tursoStatus === 'connected'
+                      ? 'bg-[#006d4b]/10 text-[#006d4b]'
+                      : tursoStatus === 'connecting'
+                      ? 'bg-amber-500/10 text-amber-700'
+                      : 'bg-[#a8364b]/10 text-[#a8364b]'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      tursoStatus === 'connected'
+                        ? 'bg-[#006d4b]'
+                        : tursoStatus === 'connecting'
+                        ? 'bg-amber-500 animate-ping'
+                        : 'bg-[#a8364b]'
+                    }`}
+                  />
+                  {tursoStatus === 'connected' ? 'Terhubung (Cloud LibSQL)' : tursoStatus === 'connecting' ? 'Menghubungkan...' : 'Mode Offline'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[#797988]">Database URL:</span>
+                <span className="font-mono text-[11px] font-semibold text-[#30323e] truncate max-w-[220px]" title="libsql://mykasirdb-aleenadigiss.aws-ap-northeast-1.turso.io">
+                  libsql://mykasirdb-aleenadigiss.aws...
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[#797988]">Wilayah Server:</span>
+                <span className="font-semibold text-[#30323e]">AWS Tokyo (ap-northeast-1)</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[#797988]">Terakhir Sinkron:</span>
+                <span className="font-semibold text-[#30323e]">{lastSyncTime || 'Baru saja'}</span>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-[#fbf8ff] rounded-xl border border-[#e2e1f2]/60 flex flex-col justify-between">
+              <span className="text-[#797988] mb-2 font-medium">Statistik Data Terdistribusi:</span>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div className="p-2 bg-white rounded-lg border border-[#e2e1f2]">
+                  <p className="text-base font-bold text-[#684cb6]">{products.length}</p>
+                  <p className="text-[10px] text-[#797988]">Produk</p>
+                </div>
+                <div className="p-2 bg-white rounded-lg border border-[#e2e1f2]">
+                  <p className="text-base font-bold text-[#684cb6]">{categories.length}</p>
+                  <p className="text-[10px] text-[#797988]">Kategori</p>
+                </div>
+                <div className="p-2 bg-white rounded-lg border border-[#e2e1f2]">
+                  <p className="text-base font-bold text-[#684cb6]">{transactions.length}</p>
+                  <p className="text-[10px] text-[#797988]">Transaksi</p>
+                </div>
+                <div className="p-2 bg-white rounded-lg border border-[#e2e1f2]">
+                  <p className="text-base font-bold text-[#684cb6]">{users.length}</p>
+                  <p className="text-[10px] text-[#797988]">Pengguna</p>
+                </div>
               </div>
             </div>
           </div>
