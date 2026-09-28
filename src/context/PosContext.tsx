@@ -10,6 +10,10 @@ import {
   PaymentMethod,
   AuthUser,
   UserRole,
+  Member,
+  MemberTier,
+  MemberRewardVoucher,
+  RedeemedVoucher,
 } from '../types';
 import {
   INITIAL_PRODUCTS,
@@ -18,6 +22,8 @@ import {
   INITIAL_CASHIERS,
   INITIAL_SETTINGS,
   INITIAL_AUTH_USERS,
+  INITIAL_MEMBERS,
+  INITIAL_REWARD_VOUCHERS,
 } from '../mockData';
 
 export type ActiveNavTab =
@@ -28,7 +34,8 @@ export type ActiveNavTab =
   | 'stok'
   | 'riwayat'
   | 'laporan'
-  | 'pengaturan';
+  | 'pengaturan'
+  | 'member';
 
 interface PosContextType {
   // Navigation
@@ -126,6 +133,27 @@ interface PosContextType {
 
   // Reset to initial
   resetDemoData: () => void;
+
+  // Members & Loyalty
+  members: Member[];
+  rewardVouchers: MemberRewardVoucher[];
+  activePosMember: Member | null;
+  setActivePosMember: (m: Member | null) => void;
+  addMember: (data: {
+    name: string;
+    phone: string;
+    email?: string;
+    birthDate?: string;
+    notes?: string;
+  }) => Member;
+  updateMember: (id: string, updated: Partial<Member>) => void;
+  deleteMember: (id: string) => void;
+  findMember: (query: string) => Member | undefined;
+  redeemRewardVoucher: (
+    memberId: string,
+    voucherId: string
+  ) => { success: boolean; message: string; voucher?: RedeemedVoucher };
+  addPointsToMember: (memberId: string, pointsEarned: number, spentAmount: number) => void;
 
   // Turso Cloud Database
   isTursoConnected: boolean;
@@ -332,7 +360,28 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastCompletedTransaction, setLastCompletedTransaction] = useState<Transaction | null>(null);
   const [showCheckoutSuccessModal, setShowCheckoutSuccessModal] = useState(false);
 
+  // Members & Loyalty States
+  const [members, setMembers] = useState<Member[]>(() => {
+    const saved = localStorage.getItem('kasirku_members');
+    return saved ? JSON.parse(saved) : INITIAL_MEMBERS;
+  });
+
+  const [rewardVouchers, setRewardVouchers] = useState<MemberRewardVoucher[]>(() => {
+    const saved = localStorage.getItem('kasirku_reward_vouchers');
+    return saved ? JSON.parse(saved) : INITIAL_REWARD_VOUCHERS;
+  });
+
+  const [activePosMember, setActivePosMember] = useState<Member | null>(null);
+
   // Sync to localStorage
+  useEffect(() => {
+    localStorage.setItem('kasirku_members', JSON.stringify(members));
+  }, [members]);
+
+  useEffect(() => {
+    localStorage.setItem('kasirku_reward_vouchers', JSON.stringify(rewardVouchers));
+  }, [rewardVouchers]);
+
   useEffect(() => {
     localStorage.setItem('kasirku_products', JSON.stringify(products));
   }, [products]);
@@ -709,6 +758,21 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const effectiveAmountPaid = Math.max(amountPaid, finalTotal);
     const change = Math.max(0, effectiveAmountPaid - finalTotal);
 
+    // Calculate points if member is attached
+    let pointsEarned = 0;
+    if (activePosMember) {
+      const multiplier =
+        activePosMember.tier === 'Diamond'
+          ? 3
+          : activePosMember.tier === 'Platinum'
+          ? 2
+          : activePosMember.tier === 'Gold'
+          ? 1.5
+          : 1;
+      pointsEarned = Math.floor((finalTotal / 1000) * multiplier);
+      addPointsToMember(activePosMember.id, pointsEarned, finalTotal);
+    }
+
     const newTx: Transaction = {
       id: newId,
       timestamp: `${dateFormatted}, ${timeFormatted}`,
@@ -723,6 +787,10 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       change,
       status: 'Sukses',
       notes,
+      memberId: activePosMember?.id,
+      memberName: activePosMember?.name,
+      memberTier: activePosMember?.tier,
+      pointsEarned,
     };
 
     // Deduct stock and increment soldCount
@@ -806,6 +874,161 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('Turso deleteTransaction error:', err);
       return true;
     }
+  };
+
+  // Member Management Functions
+  const addMember = (data: {
+    name: string;
+    phone: string;
+    email?: string;
+    birthDate?: string;
+    notes?: string;
+  }): Member => {
+    const now = new Date();
+    const joinDate = now.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+    const randomSeq = Math.floor(1000 + Math.random() * 9000);
+    const id = `MBR-${randomSeq}`;
+    const barcode = `99${Date.now().toString().slice(-8)}`;
+
+    const newMember: Member = {
+      id,
+      name: data.name.trim(),
+      phone: data.phone.trim(),
+      email: data.email?.trim() || '',
+      tier: 'Silver',
+      points: 500, // Welcome bonus points
+      totalSpent: 0,
+      transactionsCount: 0,
+      joinDate,
+      birthDate: data.birthDate || '',
+      barcode,
+      qrCode: `KASIRKU-${id}-SILVER`,
+      notes: data.notes?.trim() || '',
+      redeemedVouchers: [],
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    };
+
+    setMembers((prev) => [newMember, ...prev]);
+    showToast(`Selamat datang! Member ${newMember.name} berhasil terdaftar (+500 Poin Bonus)`, 'success');
+    return newMember;
+  };
+
+  const updateMember = (id: string, updated: Partial<Member>) => {
+    setMembers((prev) =>
+      prev.map((m) => {
+        if (m.id === id) {
+          const updatedMember = { ...m, ...updated };
+          if (updatedMember.totalSpent >= 15000000) {
+            updatedMember.tier = 'Diamond';
+          } else if (updatedMember.totalSpent >= 5000000) {
+            updatedMember.tier = 'Platinum';
+          } else if (updatedMember.totalSpent >= 1500000) {
+            updatedMember.tier = 'Gold';
+          }
+          return updatedMember;
+        }
+        return m;
+      })
+    );
+  };
+
+  const deleteMember = (id: string) => {
+    setMembers((prev) => prev.filter((m) => m.id !== id));
+    if (activePosMember?.id === id) {
+      setActivePosMember(null);
+    }
+    showToast('Data member berhasil dihapus.', 'info');
+  };
+
+  const findMember = (query: string): Member | undefined => {
+    const q = query.trim().toLowerCase();
+    if (!q) return undefined;
+    const cleanNumeric = q.replace(/[^0-9]/g, '');
+    return members.find(
+      (m) =>
+        (cleanNumeric && m.phone.replace(/[^0-9]/g, '').includes(cleanNumeric)) ||
+        m.id.toLowerCase() === q ||
+        m.barcode === q ||
+        m.name.toLowerCase().includes(q)
+    );
+  };
+
+  const redeemRewardVoucher = (
+    memberId: string,
+    voucherId: string
+  ): { success: boolean; message: string; voucher?: RedeemedVoucher } => {
+    const member = members.find((m) => m.id === memberId);
+    if (!member) {
+      return { success: false, message: 'Member tidak ditemukan.' };
+    }
+    const voucher = rewardVouchers.find((v) => v.id === voucherId);
+    if (!voucher) {
+      return { success: false, message: 'Voucher reward tidak ditemukan.' };
+    }
+    if (member.points < voucher.pointsCost) {
+      return {
+        success: false,
+        message: `Poin tidak mencukupi. Anda butuh ${voucher.pointsCost} poin (Poin Anda: ${member.points}).`,
+      };
+    }
+
+    const now = new Date();
+    const expiry = new Date(now.getTime() + voucher.expiryDays * 24 * 60 * 60 * 1000);
+    const code = `${voucher.code.replace('VCH-', '')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+    const newRedeemed: RedeemedVoucher = {
+      id: `rdm-${Date.now()}`,
+      voucherId: voucher.id,
+      code,
+      title: voucher.title,
+      pointsCost: voucher.pointsCost,
+      discountValue: voucher.discountValue,
+      redeemedAt: now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+      expiresAt: expiry.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+      isUsed: false,
+    };
+
+    setMembers((prev) =>
+      prev.map((m) =>
+        m.id === memberId
+          ? {
+              ...m,
+              points: m.points - voucher.pointsCost,
+              redeemedVouchers: [newRedeemed, ...(m.redeemedVouchers || [])],
+            }
+          : m
+      )
+    );
+
+    showToast(`Berhasil menukar "${voucher.title}"! Kode: ${code}`, 'success');
+    return { success: true, message: 'Berhasil menukar voucher', voucher: newRedeemed };
+  };
+
+  const addPointsToMember = (memberId: string, pointsEarned: number, spentAmount: number) => {
+    setMembers((prev) =>
+      prev.map((m) => {
+        if (m.id === memberId) {
+          const newTotalSpent = m.totalSpent + spentAmount;
+          let newTier: MemberTier = m.tier;
+          if (newTotalSpent >= 15000000) newTier = 'Diamond';
+          else if (newTotalSpent >= 5000000) newTier = 'Platinum';
+          else if (newTotalSpent >= 1500000) newTier = 'Gold';
+
+          return {
+            ...m,
+            points: m.points + pointsEarned,
+            totalSpent: newTotalSpent,
+            transactionsCount: m.transactionsCount + 1,
+            tier: newTier,
+          };
+        }
+        return m;
+      })
+    );
   };
 
   const openRegister = (startingCash: number) => {
@@ -991,12 +1214,17 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTransactions(INITIAL_TRANSACTIONS);
     setSettings(INITIAL_SETTINGS);
     setStockLogs([]);
+    setMembers(INITIAL_MEMBERS);
+    setRewardVouchers(INITIAL_REWARD_VOUCHERS);
+    setActivePosMember(null);
     clearCart();
     localStorage.removeItem('kasirku_products');
     localStorage.removeItem('kasirku_categories');
     localStorage.removeItem('kasirku_transactions');
     localStorage.removeItem('kasirku_settings');
     localStorage.removeItem('kasirku_stock_logs');
+    localStorage.removeItem('kasirku_members');
+    localStorage.removeItem('kasirku_reward_vouchers');
 
     fetch('/api/reset', {
       method: 'POST',
@@ -1067,6 +1295,16 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showCheckoutSuccessModal,
         setShowCheckoutSuccessModal,
         resetDemoData,
+        members,
+        rewardVouchers,
+        activePosMember,
+        setActivePosMember,
+        addMember,
+        updateMember,
+        deleteMember,
+        findMember,
+        redeemRewardVoucher,
+        addPointsToMember,
         isTursoConnected,
         tursoStatus,
         lastSyncTime,

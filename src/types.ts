@@ -48,6 +48,58 @@ export interface Transaction {
   change: number;
   status: TransactionStatus;
   notes?: string;
+  memberId?: string;
+  memberName?: string;
+  memberTier?: MemberTier;
+  pointsEarned?: number;
+  pointsUsed?: number;
+  pointsDiscount?: number;
+}
+
+export type MemberTier = 'Silver' | 'Gold' | 'Platinum' | 'Diamond';
+
+export interface RedeemedVoucher {
+  id: string;
+  voucherId: string;
+  code: string;
+  title: string;
+  pointsCost: number;
+  discountValue: number;
+  redeemedAt: string;
+  expiresAt: string;
+  isUsed: boolean;
+}
+
+export interface Member {
+  id: string; // e.g. "MBR-8801"
+  name: string;
+  phone: string;
+  email?: string;
+  tier: MemberTier;
+  points: number;
+  totalSpent: number;
+  transactionsCount: number;
+  joinDate: string;
+  birthDate?: string;
+  avatar?: string;
+  barcode: string; // numeric barcode e.g. "9988221045"
+  qrCode?: string;
+  notes?: string;
+  redeemedVouchers?: RedeemedVoucher[];
+}
+
+export interface MemberRewardVoucher {
+  id: string;
+  code: string;
+  title: string;
+  category: 'Voucher Belanja' | 'Kuliner & Minuman' | 'Diskon Transaksi' | 'Produk Gratis';
+  pointsCost: number;
+  discountValue: number;
+  minPurchase: number;
+  expiryDays: number;
+  description: string;
+  badge?: string;
+  stock?: number;
 }
 
 export type UserRole = 'Super Admin' | 'Admin' | 'Manager' | 'Kasir';

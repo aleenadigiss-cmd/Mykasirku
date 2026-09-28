@@ -25,6 +25,7 @@ import {
   GripVertical,
   SlidersHorizontal,
   PackageX,
+  Crown,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { usePos } from '../context/PosContext';
@@ -33,6 +34,7 @@ import { PaymentMethod, Product } from '../types';
 import { BarcodeScannerModal, playScanSound } from './BarcodeScannerModal';
 import { QrisBarcodeCard } from './QrisBarcodeCard';
 import { QrisModal } from './QrisModal';
+import { MemberSelectModal } from './MemberSelectModal';
 
 export const PosView: React.FC = () => {
   const {
@@ -52,6 +54,9 @@ export const PosView: React.FC = () => {
     setSearchQuery,
     setActiveTab,
     settings,
+    activePosMember,
+    setActivePosMember,
+    findMember,
   } = usePos();
 
   // Filters & Payment states
@@ -60,6 +65,7 @@ export const PosView: React.FC = () => {
   const [cashGivenText, setCashGivenText] = useState<string>('150000');
   const [notes, setNotes] = useState<string>('');
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState<boolean>(false);
   const [skuFeedback, setSkuFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isQrisModalOpen, setIsQrisModalOpen] = useState<boolean>(false);
 
@@ -132,6 +138,20 @@ export const PosView: React.FC = () => {
 
         if (scanned.length >= 2) {
           e.preventDefault();
+
+          // Check if scanned is a member barcode or member ID
+          const matchedMember = findMember(scanned);
+          if (matchedMember) {
+            setActivePosMember(matchedMember);
+            playScanSound(true);
+            setSkuFeedback({
+              message: `👑 Member VIP: ${matchedMember.name} (${matchedMember.tier}) terpasang!`,
+              type: 'success',
+            });
+            setTimeout(() => setSkuFeedback(null), 3500);
+            return;
+          }
+
           const matched = products.find(
             (p) =>
               p.sku.toLowerCase() === scanned.toLowerCase() ||
@@ -191,6 +211,20 @@ export const PosView: React.FC = () => {
     if (e.key === 'Enter') {
       const q = searchQuery.trim();
       if (!q) return;
+
+      // Check if query is a member barcode, phone, or ID
+      const maybeMember = findMember(q);
+      if (maybeMember) {
+        setActivePosMember(maybeMember);
+        playScanSound(true);
+        setSkuFeedback({
+          message: `👑 Member VIP: ${maybeMember.name} (${maybeMember.tier}) terpasang!`,
+          type: 'success',
+        });
+        setSearchQuery('');
+        setTimeout(() => setSkuFeedback(null), 3500);
+        return;
+      }
 
       const matched = products.find(
         (p) =>
@@ -322,6 +356,13 @@ export const PosView: React.FC = () => {
       <BarcodeScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
+      />
+
+      {/* Member Selection & Registration Modal */}
+      <MemberSelectModal
+        isOpen={isMemberModalOpen}
+        onClose={() => setIsMemberModalOpen(false)}
+        onSelectMember={(m) => setActivePosMember(m)}
       />
 
       {/* QRIS Fullscreen / Customer Display Modal */}
@@ -820,6 +861,65 @@ export const PosView: React.FC = () => {
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* Customer Member Loyalty Banner */}
+            <div className="px-3.5 py-2 bg-[#fbf8ff] border-b border-[#e2e1f2] flex items-center justify-between gap-2 shrink-0">
+              {activePosMember ? (
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-900 border border-amber-300 flex items-center justify-center shrink-0 shadow-2xs">
+                      <Crown className="w-4 h-4 fill-amber-400 text-amber-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-[#1e1b4b] truncate">
+                          {activePosMember.name}
+                        </span>
+                        <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full uppercase bg-amber-200 text-amber-950">
+                          {activePosMember.tier}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-[#684cb6] font-semibold block">
+                        Saldo: {formatNumber(activePosMember.points)} Pts (
+                        +{Math.floor(
+                          (cartTotal / 1000) *
+                            (activePosMember.tier === 'Diamond'
+                              ? 3
+                              : activePosMember.tier === 'Platinum'
+                              ? 2
+                              : activePosMember.tier === 'Gold'
+                              ? 1.5
+                              : 1)
+                        )}{' '}
+                        Pts didapat)
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActivePosMember(null)}
+                    title="Lepas Member dari Pesanan"
+                    className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsMemberModalOpen(true)}
+                  className="w-full py-1.5 px-2.5 rounded-xl border border-dashed border-[#684cb6]/40 hover:border-[#684cb6] bg-white hover:bg-[#f4f2fe] text-xs font-bold text-[#684cb6] flex items-center justify-between transition-all cursor-pointer shadow-2xs group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Crown className="w-4 h-4 text-amber-500 fill-amber-400 group-hover:scale-110 transition-transform" />
+                    <span>Pasang Member VIP</span>
+                  </div>
+                  <span className="text-[10px] text-amber-900 font-bold bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                    +Poin & Promo
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* Cart Items List (Scrollable) */}

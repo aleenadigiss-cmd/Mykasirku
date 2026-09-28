@@ -16,12 +16,13 @@ import {
   Shield,
   ShoppingBag,
   Briefcase,
+  Crown,
 } from 'lucide-react';
 import { usePos } from '../context/PosContext';
 import { UserRole } from '../types';
 
 export const AuthView: React.FC = () => {
-  const { login, registerUser } = usePos();
+  const { login, registerUser, setActiveTab: setPosActiveTab } = usePos();
 
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
 
@@ -528,6 +529,26 @@ export const AuthView: React.FC = () => {
               </form>
             )}
           </div>
+        </div>
+
+        {/* Customer Member Portal Banner */}
+        <div className="mt-5 p-4 bg-white/95 backdrop-blur-md rounded-3xl border border-amber-200/90 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+              <Crown className="w-5 h-5 text-amber-600 fill-amber-500" />
+            </div>
+            <div>
+              <span className="font-bold text-[#1e1b4b] text-sm block">Pelanggan Setia Toko?</span>
+              <span className="text-[#5d5e6c]">Cek poin reward, tukar voucher, atau dapatkan kartu VIP digital gratis</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPosActiveTab('member')}
+            className="w-full sm:w-auto px-4 py-2.5 bg-amber-400 hover:bg-amber-500 active:scale-95 text-amber-950 font-bold rounded-xl transition-all cursor-pointer shrink-0 shadow-2xs whitespace-nowrap"
+          >
+            Buka Landing Page Member
+          </button>
         </div>
 
         {/* Footer info */}

@@ -14,6 +14,7 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
+  Crown,
 } from 'lucide-react';
 import { usePos, ActiveNavTab } from '../context/PosContext';
 
@@ -38,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     toggleSidebar,
   } = usePos();
 
-  const navItems: { id: ActiveNavTab; label: string; icon: React.ReactNode; badge?: number }[] = [
+  const navItems: { id: ActiveNavTab; label: string; icon: React.ReactNode; badge?: number; tag?: string }[] = [
     {
       id: 'dashboard',
       label: 'Dashboard',
@@ -49,6 +50,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Kasir (POS)',
       icon: <Store className="w-5 h-5" />,
       badge: cartItemCount > 0 ? cartItemCount : undefined,
+    },
+    {
+      id: 'member',
+      label: 'Landing Page Member',
+      icon: <Crown className="w-5 h-5 text-amber-500" />,
+      tag: 'VIP',
     },
     {
       id: 'produk',
@@ -177,6 +184,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {!isCollapsed && (
                 <>
                   <span className="truncate flex-1 text-left">{item.label}</span>
+                  {item.tag && (
+                    <span className="text-[10px] uppercase font-extrabold px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-950 font-sans shadow-2xs whitespace-nowrap">
+                      {item.tag}
+                    </span>
+                  )}
                   {item.badge !== undefined && (
                     <span
                       className={`ml-auto text-[11px] px-2 py-0.5 rounded-full font-bold ${

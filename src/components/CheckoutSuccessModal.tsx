@@ -138,6 +138,20 @@ export const CheckoutSuccessModal: React.FC = () => {
               </div>
             </div>
 
+            {/* Member VIP Points Info on Receipt */}
+            {tx.memberName && (
+              <div className="py-2 px-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] space-y-1">
+                <div className="flex justify-between items-center text-amber-950 font-bold">
+                  <span>Member VIP:</span>
+                  <span>{tx.memberName} ({tx.memberTier})</span>
+                </div>
+                <div className="flex justify-between items-center text-emerald-700 font-bold">
+                  <span>Poin Didapat:</span>
+                  <span>+{tx.pointsEarned || 0} Pts</span>
+                </div>
+              </div>
+            )}
+
             <div className="text-center pt-2 text-[#797988] text-[10px] italic">
               {settings.receiptFooter}
             </div>

@@ -14,6 +14,7 @@ import {
   PanelLeftOpen,
   Database,
   RefreshCw,
+  Crown,
 } from 'lucide-react';
 import { usePos } from '../context/PosContext';
 
@@ -158,6 +159,16 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
             <RefreshCw className={`w-3 h-3 ${tursoStatus === 'connecting' ? 'animate-spin' : ''}`} />
           </button>
         </div>
+
+        {/* Portal Member Landing Page Shortcut */}
+        <button
+          onClick={() => setActiveTab('member')}
+          title="Buka Landing Page Member VIP & Loyalty Club"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-950 bg-amber-100 hover:bg-amber-200 active:scale-95 rounded-lg border border-amber-300 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+        >
+          <Crown className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+          <span className="hidden sm:inline">Portal Member</span>
+        </button>
 
         {/* Reset Demo Data Pill */}
         <button

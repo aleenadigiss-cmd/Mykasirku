@@ -17,6 +17,7 @@ import { SettingsView } from './components/SettingsView';
 import { CheckoutSuccessModal } from './components/CheckoutSuccessModal';
 import { OpenRegisterModal } from './components/OpenRegisterModal';
 import { AuthView } from './components/AuthView';
+import { MemberLandingView } from './components/MemberLandingView';
 
 const MainLayout: React.FC = () => {
   const { activeTab } = usePos();
@@ -38,9 +39,10 @@ const MainLayout: React.FC = () => {
         <Header onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)} />
 
         {/* Scrollable Page Body */}
-        <main className={`flex-1 min-w-0 ${activeTab === 'kasir' ? 'overflow-hidden p-0' : 'overflow-y-auto p-4 md:p-8'}`}>
+        <main className={`flex-1 min-w-0 ${activeTab === 'kasir' || activeTab === 'member' ? 'overflow-y-auto p-0' : 'overflow-y-auto p-4 md:p-8'}`}>
           {activeTab === 'dashboard' && <DashboardView />}
           {activeTab === 'kasir' && <PosView />}
+          {activeTab === 'member' && <MemberLandingView />}
           {activeTab === 'produk' && <ProductsView />}
           {activeTab === 'kategori' && <CategoriesView />}
           {activeTab === 'stok' && <StockView />}
@@ -61,7 +63,16 @@ const MainLayout: React.FC = () => {
 };
 
 const RootApp: React.FC = () => {
-  const { isAuthenticated } = usePos();
+  const { isAuthenticated, activeTab } = usePos();
+
+  // If viewing member landing page, allow customer access without requiring cashier login
+  if (activeTab === 'member') {
+    return (
+      <div className="w-screen h-screen overflow-y-auto bg-[#fbf8ff]">
+        <MemberLandingView />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <AuthView />;
