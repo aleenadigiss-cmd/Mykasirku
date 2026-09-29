@@ -237,6 +237,8 @@ export const INITIAL_MEMBERS: Member[] = [
     barcode: '9988221045',
     qrCode: 'KASIRKU-MBR-7701-DIAMOND',
     notes: 'Member VIP prioritas, suka produk kopi arabica & susu almond.',
+    password: 'member123',
+    pin: '1234',
     redeemedVouchers: [
       {
         id: 'rdm-1',
@@ -266,6 +268,8 @@ export const INITIAL_MEMBERS: Member[] = [
     barcode: '9988334412',
     qrCode: 'KASIRKU-MBR-8802-PLATINUM',
     notes: 'Pelanggan setia perlengkapan kantor & kertas HVS.',
+    password: 'member123',
+    pin: '1234',
     redeemedVouchers: [
       {
         id: 'rdm-2',
@@ -295,6 +299,8 @@ export const INITIAL_MEMBERS: Member[] = [
     barcode: '9988445588',
     qrCode: 'KASIRKU-MBR-8803-GOLD',
     notes: 'Member Gold baru, sering belanja cemilan dan minuman.',
+    password: 'member123',
+    pin: '1234',
     redeemedVouchers: [],
   },
   {
@@ -312,6 +318,8 @@ export const INITIAL_MEMBERS: Member[] = [
     barcode: '9988556622',
     qrCode: 'KASIRKU-MBR-8804-SILVER',
     notes: 'Member baru Silver terdaftar via kasir.',
+    password: 'member123',
+    pin: '1234',
     redeemedVouchers: [],
   },
 ];

@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Crown,
+  Globe,
 } from 'lucide-react';
 import { usePos, ActiveNavTab } from '../context/PosContext';
 
@@ -41,6 +42,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems: { id: ActiveNavTab; label: string; icon: React.ReactNode; badge?: number; tag?: string }[] = [
     {
+      id: 'landing',
+      label: 'Halaman Depan (Landing)',
+      icon: <Globe className="w-5 h-5 text-[#684cb6]" />,
+      tag: 'Home',
+    },
+    {
       id: 'dashboard',
       label: 'Dashboard',
       icon: <LayoutDashboard className="w-5 h-5" />,
@@ -50,12 +57,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Kasir (POS)',
       icon: <Store className="w-5 h-5" />,
       badge: cartItemCount > 0 ? cartItemCount : undefined,
-    },
-    {
-      id: 'member',
-      label: 'Landing Page Member',
-      icon: <Crown className="w-5 h-5 text-amber-500" />,
-      tag: 'VIP',
     },
     {
       id: 'produk',

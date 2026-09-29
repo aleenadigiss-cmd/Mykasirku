@@ -15,6 +15,7 @@ import {
   Database,
   RefreshCw,
   Crown,
+  Globe,
 } from 'lucide-react';
 import { usePos } from '../context/PosContext';
 
@@ -160,14 +161,14 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
           </button>
         </div>
 
-        {/* Portal Member Landing Page Shortcut */}
+        {/* Landing Page Home Shortcut */}
         <button
-          onClick={() => setActiveTab('member')}
-          title="Buka Landing Page Member VIP & Loyalty Club"
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-950 bg-amber-100 hover:bg-amber-200 active:scale-95 rounded-lg border border-amber-300 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+          onClick={() => setActiveTab('landing')}
+          title="Buka Halaman Depan / Landing Page KASIRKU"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#684cb6] bg-purple-50 hover:bg-purple-100 active:scale-95 rounded-lg border border-purple-200 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
         >
-          <Crown className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
-          <span className="hidden sm:inline">Portal Member</span>
+          <Globe className="w-3.5 h-3.5 text-[#684cb6]" />
+          <span className="hidden sm:inline">Landing Page</span>
         </button>
 
         {/* Reset Demo Data Pill */}

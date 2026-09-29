@@ -27,6 +27,7 @@ import {
 } from '../mockData';
 
 export type ActiveNavTab =
+  | 'landing'
   | 'dashboard'
   | 'kasir'
   | 'produk'
@@ -154,6 +155,22 @@ interface PosContextType {
     voucherId: string
   ) => { success: boolean; message: string; voucher?: RedeemedVoucher };
   addPointsToMember: (memberId: string, pointsEarned: number, spentAmount: number) => void;
+  currentMember: Member | null;
+  setCurrentMember: (m: Member | null) => void;
+  memberSignIn: (
+    identifier: string,
+    passwordOrPin?: string
+  ) => { success: boolean; message: string; member?: Member };
+  memberSignUp: (data: {
+    name: string;
+    phone: string;
+    email?: string;
+    birthDate?: string;
+    password?: string;
+    pin?: string;
+    notes?: string;
+  }) => { success: boolean; message: string; member?: Member };
+  memberSignOut: () => void;
 
   // Turso Cloud Database
   isTursoConnected: boolean;
@@ -165,7 +182,7 @@ interface PosContextType {
 const PosContext = createContext<PosContextType | undefined>(undefined);
 
 export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeTab, setActiveTab] = useState<ActiveNavTab>('dashboard');
+  const [activeTab, setActiveTab] = useState<ActiveNavTab>('landing');
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const toggleSidebar = () => setSidebarCollapsed((prev) => !prev);
@@ -372,6 +389,18 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [activePosMember, setActivePosMember] = useState<Member | null>(null);
+  const [currentMember, setCurrentMember] = useState<Member | null>(() => {
+    const saved = localStorage.getItem('kasirku_current_member');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  useEffect(() => {
+    if (currentMember) {
+      localStorage.setItem('kasirku_current_member', JSON.stringify(currentMember));
+    } else {
+      localStorage.removeItem('kasirku_current_member');
+    }
+  }, [currentMember]);
 
   // Sync to localStorage
   useEffect(() => {
@@ -1031,6 +1060,110 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  const memberSignIn = (
+    identifier: string,
+    passwordOrPin?: string
+  ): { success: boolean; message: string; member?: Member } => {
+    const q = identifier.trim().toLowerCase();
+    if (!q) {
+      return { success: false, message: 'Harap masukkan nomor WhatsApp atau ID Member Anda.' };
+    }
+    const cleanNum = q.replace(/[^0-9]/g, '');
+    const found = members.find(
+      (m) =>
+        (cleanNum && m.phone.replace(/[^0-9]/g, '') === cleanNum) ||
+        m.id.toLowerCase() === q ||
+        m.barcode === q
+    );
+
+    if (!found) {
+      return {
+        success: false,
+        message: 'Akun member tidak ditemukan. Periksa kembali nomor atau daftar akun baru.',
+      };
+    }
+
+    if (passwordOrPin && found.password && found.password !== passwordOrPin && found.pin !== passwordOrPin) {
+      return {
+        success: false,
+        message: 'Password atau PIN member tidak sesuai. Silakan coba lagi.',
+      };
+    }
+
+    setCurrentMember(found);
+    showToast(`Selamat datang kembali, ${found.name}! (${found.tier} Member)`, 'success');
+    return { success: true, message: 'Berhasil masuk.', member: found };
+  };
+
+  const memberSignUp = (data: {
+    name: string;
+    phone: string;
+    email?: string;
+    birthDate?: string;
+    password?: string;
+    pin?: string;
+    notes?: string;
+  }): { success: boolean; message: string; member?: Member } => {
+    const cleanName = data.name.trim();
+    const cleanPhone = data.phone.trim();
+    if (!cleanName) {
+      return { success: false, message: 'Nama lengkap wajib diisi.' };
+    }
+    if (!cleanPhone || cleanPhone.replace(/[^0-9]/g, '').length < 8) {
+      return { success: false, message: 'Nomor WhatsApp / HP minimal 8 digit.' };
+    }
+
+    const existing = members.find(
+      (m) => m.phone.replace(/[^0-9]/g, '') === cleanPhone.replace(/[^0-9]/g, '')
+    );
+    if (existing) {
+      return {
+        success: false,
+        message: `Nomor HP ini sudah terdaftar atas nama ${existing.name}. Silakan langsung Sign In.`,
+      };
+    }
+
+    const now = new Date();
+    const joinDate = now.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+    const randomSeq = Math.floor(1000 + Math.random() * 9000);
+    const id = `MBR-${randomSeq}`;
+    const barcode = `99${Date.now().toString().slice(-8)}`;
+
+    const newMember: Member = {
+      id,
+      name: cleanName,
+      phone: cleanPhone,
+      email: data.email?.trim() || '',
+      tier: 'Silver',
+      points: 500, // Welcome bonus
+      totalSpent: 0,
+      transactionsCount: 0,
+      joinDate,
+      birthDate: data.birthDate || '',
+      barcode,
+      qrCode: `KASIRKU-${id}-SILVER`,
+      password: data.password || 'member123',
+      pin: data.pin || '1234',
+      notes: data.notes?.trim() || '',
+      redeemedVouchers: [],
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    };
+
+    setMembers((prev) => [newMember, ...prev]);
+    setCurrentMember(newMember);
+    showToast(`Selamat datang, ${newMember.name}! Bonus 500 Poin telah ditambahkan.`, 'success');
+    return { success: true, message: 'Pendaftaran sukses.', member: newMember };
+  };
+
+  const memberSignOut = () => {
+    setCurrentMember(null);
+    showToast('Berhasil keluar dari akun member.', 'info');
+  };
+
   const openRegister = (startingCash: number) => {
     setIsRegisterOpen(true);
     setRegisterStartingCash(startingCash);
@@ -1206,6 +1339,9 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = () => {
     setCurrentUser(null);
+    localStorage.removeItem('kasirku_current_user');
+    setActiveTab('landing');
+    showToast('Berhasil keluar dari akun.', 'info');
   };
 
   const resetDemoData = () => {
@@ -1305,6 +1441,11 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         findMember,
         redeemRewardVoucher,
         addPointsToMember,
+        currentMember,
+        setCurrentMember,
+        memberSignIn,
+        memberSignUp,
+        memberSignOut,
         isTursoConnected,
         tursoStatus,
         lastSyncTime,

@@ -18,6 +18,8 @@ import { CheckoutSuccessModal } from './components/CheckoutSuccessModal';
 import { OpenRegisterModal } from './components/OpenRegisterModal';
 import { AuthView } from './components/AuthView';
 import { MemberLandingView } from './components/MemberLandingView';
+import { LandingPage } from './components/LandingPage';
+import { Toast } from './components/Toast';
 
 const MainLayout: React.FC = () => {
   const { activeTab } = usePos();
@@ -39,10 +41,9 @@ const MainLayout: React.FC = () => {
         <Header onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)} />
 
         {/* Scrollable Page Body */}
-        <main className={`flex-1 min-w-0 ${activeTab === 'kasir' || activeTab === 'member' ? 'overflow-y-auto p-0' : 'overflow-y-auto p-4 md:p-8'}`}>
+        <main className={`flex-1 min-w-0 ${activeTab === 'kasir' ? 'overflow-y-auto p-0' : 'overflow-y-auto p-4 md:p-8'}`}>
           {activeTab === 'dashboard' && <DashboardView />}
           {activeTab === 'kasir' && <PosView />}
-          {activeTab === 'member' && <MemberLandingView />}
           {activeTab === 'produk' && <ProductsView />}
           {activeTab === 'kategori' && <CategoriesView />}
           {activeTab === 'stok' && <StockView />}
@@ -65,20 +66,42 @@ const MainLayout: React.FC = () => {
 const RootApp: React.FC = () => {
   const { isAuthenticated, activeTab } = usePos();
 
-  // If viewing member landing page, allow customer access without requiring cashier login
-  if (activeTab === 'member') {
+  // 1. Landing page at the beginning of the application (first open)
+  if (activeTab === 'landing') {
     return (
       <div className="w-screen h-screen overflow-y-auto bg-[#fbf8ff]">
-        <MemberLandingView />
+        <LandingPage />
+        <Toast />
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return <AuthView />;
+  // 2. Member VIP Loyalty Portal
+  if (activeTab === 'member') {
+    return (
+      <div className="w-screen h-screen overflow-y-auto bg-[#fbf8ff]">
+        <MemberLandingView />
+        <Toast />
+      </div>
+    );
   }
 
-  return <MainLayout />;
+  // 3. For protected POS views when not authenticated
+  if (!isAuthenticated && activeTab !== 'kasir') {
+    return (
+      <>
+        <AuthView />
+        <Toast />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <MainLayout />
+      <Toast />
+    </>
+  );
 };
 
 export default function App() {

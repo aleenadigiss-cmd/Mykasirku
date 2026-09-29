@@ -35,6 +35,9 @@ import {
   Flame,
   Ticket,
   Barcode,
+  LogIn,
+  UserPlus,
+  LogOut,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'motion/react';
@@ -42,6 +45,7 @@ import { usePos } from '../context/PosContext';
 import { Member, MemberRewardVoucher, MemberTier, RedeemedVoucher } from '../types';
 import { formatNumber, formatRupiah } from '../utils/formatters';
 import { DigitalMemberCard } from './DigitalMemberCard';
+import { MemberAuthModal } from './MemberAuthModal';
 
 export const MemberLandingView: React.FC = () => {
   const {
@@ -52,6 +56,8 @@ export const MemberLandingView: React.FC = () => {
     setActiveTab,
     settings,
     setActivePosMember,
+    currentMember,
+    memberSignOut,
   } = usePos();
 
   // Navigation & UI States
@@ -81,20 +87,28 @@ export const MemberLandingView: React.FC = () => {
   const [lookupError, setLookupError] = useState<string>('');
 
   // Modals
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
   const [showRegisterModal, setShowRegisterModal] = useState<boolean>(false);
+  const [regName, setRegName] = useState<string>('');
+  const [regPhone, setRegPhone] = useState<string>('');
+  const [regEmail, setRegEmail] = useState<string>('');
+  const [regBirthDate, setRegBirthDate] = useState<string>('');
+  const [regError, setRegError] = useState<string>('');
   const [showVoucherRedeemModal, setShowVoucherRedeemModal] = useState<MemberRewardVoucher | null>(null);
   const [showFullscreenBarcode, setShowFullscreenBarcode] = useState<boolean>(false);
   const [lastRedeemedVoucher, setLastRedeemedVoucher] = useState<RedeemedVoucher | null>(null);
 
-  // Registration Form State
-  const [regName, setRegName] = useState('');
-  const [regPhone, setRegPhone] = useState('');
-  const [regEmail, setRegEmail] = useState('');
-  const [regBirthDate, setRegBirthDate] = useState('');
-  const [regError, setRegError] = useState('');
-
   // FAQ Accordion State
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+
+  // Sync with logged in currentMember
+  useEffect(() => {
+    if (currentMember) {
+      setActiveLookupMember(currentMember);
+      setLookupQuery(currentMember.phone);
+    }
+  }, [currentMember]);
 
   // Sync lookup member if members state updates
   useEffect(() => {
@@ -357,23 +371,74 @@ export const MemberLandingView: React.FC = () => {
           </nav>
 
           {/* Desktop Right Action Buttons */}
-          <div className="hidden sm:flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-2.5">
             <button
               onClick={() => setActiveTab('kasir')}
-              className="px-4 py-2.5 rounded-xl border border-[#e2e1f2] text-[#30323e] hover:bg-[#f4f2fe] hover:text-[#684cb6] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              className="px-3.5 py-2 rounded-xl border border-[#e2e1f2] text-[#30323e] hover:bg-[#f4f2fe] hover:text-[#684cb6] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               title="Beralih ke Aplikasi Kasir POS"
             >
               <Store className="w-4 h-4 text-[#684cb6]" />
-              <span>Buka Kasir POS</span>
+              <span className="hidden xl:inline">Buka Kasir POS</span>
             </button>
 
-            <button
-              onClick={() => setShowRegisterModal(true)}
-              className="px-6 py-3 bg-[#684cb6] hover:bg-[#583ca4] active:scale-[0.98] text-white font-bold rounded-xl text-xs sm:text-sm transition-all shadow-md flex items-center gap-2 cursor-pointer whitespace-nowrap"
-            >
-              <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" />
-              <span>Daftar Member Gratis</span>
-            </button>
+            {currentMember ? (
+              <div className="flex items-center gap-2">
+                <div
+                  onClick={() => scrollToSection('check-status')}
+                  className="flex items-center gap-2 bg-[#f4f2fe] border border-[#e2e1f2] hover:border-[#684cb6] px-3 py-1.5 rounded-xl cursor-pointer transition-colors shadow-2xs"
+                  title="Lihat status kartu saya"
+                >
+                  <img
+                    src={currentMember.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'}
+                    alt={currentMember.name}
+                    className="w-7 h-7 rounded-full object-cover border border-purple-200"
+                  />
+                  <div className="text-left">
+                    <span className="text-xs font-bold text-[#1e1b4b] block leading-tight truncate max-w-[100px]">
+                      {currentMember.name.split(' ')[0]}
+                    </span>
+                    <span className="text-[10px] font-extrabold text-[#684cb6]">
+                      {currentMember.tier} • {formatNumber(currentMember.points)} Pts
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={memberSignOut}
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-slate-500 hover:text-red-600 hover:bg-red-50 text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
+                  title="Keluar dari akun member"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthModalMode('signin');
+                    setShowAuthModal(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl border border-[#e2e1f2] hover:border-[#684cb6] text-[#1e1b4b] hover:bg-[#f4f2fe] hover:text-[#684cb6] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
+                >
+                  <LogIn className="w-4 h-4 text-[#684cb6]" />
+                  <span>Sign In</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthModalMode('signup');
+                    setShowAuthModal(true);
+                  }}
+                  className="px-5 py-2.5 bg-[#684cb6] hover:bg-[#583ca4] active:scale-[0.98] text-white font-bold rounded-xl text-xs sm:text-sm transition-all shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <UserPlus className="w-4 h-4 text-amber-300" />
+                  <span>Sign Up (+500 Pts)</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Mobile Hamburger Button */}
@@ -435,22 +500,67 @@ export const MemberLandingView: React.FC = () => {
               </div>
 
               <div className="pt-3 border-t border-[#e2e1f2] flex flex-col gap-2">
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    setShowRegisterModal(true);
-                  }}
-                  className="w-full py-3 bg-[#684cb6] text-white font-bold rounded-xl text-center text-sm shadow-md flex items-center justify-center gap-2"
-                >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>Daftar Member Baru (+500 Poin)</span>
-                </button>
+                {currentMember ? (
+                  <div className="p-3 bg-[#f4f2fe] rounded-2xl border border-purple-200 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <img
+                        src={currentMember.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'}
+                        alt={currentMember.name}
+                        className="w-9 h-9 rounded-full object-cover border border-purple-300"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-[#1e1b4b] block">
+                          {currentMember.name}
+                        </span>
+                        <span className="text-[10px] font-extrabold text-[#684cb6]">
+                          {currentMember.tier} VIP • {formatNumber(currentMember.points)} Pts
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        memberSignOut();
+                        setMobileMenuOpen(false);
+                      }}
+                      className="px-3 py-1.5 text-xs font-bold text-red-600 bg-white border border-red-200 rounded-xl"
+                    >
+                      Keluar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setAuthModalMode('signin');
+                        setShowAuthModal(true);
+                      }}
+                      className="w-full py-2.5 bg-white border border-[#e2e1f2] text-[#1e1b4b] font-bold rounded-xl text-center text-xs shadow-2xs flex items-center justify-center gap-1.5"
+                    >
+                      <LogIn className="w-3.5 h-3.5 text-[#684cb6]" />
+                      <span>Sign In</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setAuthModalMode('signup');
+                        setShowAuthModal(true);
+                      }}
+                      className="w-full py-2.5 bg-[#684cb6] text-white font-bold rounded-xl text-center text-xs shadow-md flex items-center justify-center gap-1.5"
+                    >
+                      <UserPlus className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Sign Up (+500 Pts)</span>
+                    </button>
+                  </div>
+                )}
+
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
                     setActiveTab('kasir');
                   }}
-                  className="w-full py-2.5 border border-[#e2e1f2] rounded-xl text-center text-xs font-bold text-[#30323e] flex items-center justify-center gap-1.5"
+                  className="w-full py-2.5 border border-[#e2e1f2] rounded-xl text-center text-xs font-bold text-[#30323e] flex items-center justify-center gap-1.5 mt-1"
                 >
                   <Store className="w-4 h-4 text-[#684cb6]" />
                   <span>Buka Aplikasi Kasir POS</span>

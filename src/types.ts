@@ -85,6 +85,8 @@ export interface Member {
   barcode: string; // numeric barcode e.g. "9988221045"
   qrCode?: string;
   notes?: string;
+  password?: string;
+  pin?: string;
   redeemedVouchers?: RedeemedVoucher[];
 }
 
