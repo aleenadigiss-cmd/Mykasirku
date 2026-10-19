@@ -15,12 +15,21 @@ import {
   Database,
   RefreshCw,
   Server,
+  Sun,
+  Moon,
+  ShieldAlert,
 } from 'lucide-react';
 import { usePos } from '../context/PosContext';
 import { CashierProfile } from '../types';
 import { QrisBarcodeCard } from './QrisBarcodeCard';
+import { SuperAdminView } from './SuperAdminView';
 
-export const SettingsView: React.FC = () => {
+interface SettingsViewProps {
+  initialTab?: 'profil' | 'superadmin';
+}
+
+export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'profil' }) => {
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'profil' | 'superadmin'>(initialTab);
   const {
     settings,
     updateSettings,
@@ -35,6 +44,8 @@ export const SettingsView: React.FC = () => {
     tursoStatus,
     lastSyncTime,
     syncWithTurso,
+    theme,
+    setTheme,
   } = usePos();
 
   const [isSyncing, setIsSyncing] = useState(false);
@@ -91,7 +102,136 @@ export const SettingsView: React.FC = () => {
         )}
       </div>
 
-      <form onSubmit={handleSave} className="space-y-6">
+      {/* Top Settings Navigation Tabs */}
+      <div className="flex border-b border-[#e2e1f2] bg-white rounded-2xl p-1.5 shadow-2xs gap-1.5 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('profil')}
+          className={`py-2.5 px-4 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeSettingsTab === 'profil'
+              ? 'bg-[#684cb6] text-white shadow-xs'
+              : 'text-[#5d5e6c] hover:text-[#1e1b4b] hover:bg-[#fbf8ff]'
+          }`}
+        >
+          <Store className="w-4 h-4" />
+          <span>Profil Toko & Operasional</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSettingsTab('superadmin')}
+          className={`py-2.5 px-4 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeSettingsTab === 'superadmin'
+              ? 'bg-amber-400 text-amber-950 font-extrabold shadow-xs'
+              : 'text-[#5d5e6c] hover:text-[#1e1b4b] hover:bg-[#fbf8ff]'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4 text-amber-600" />
+          <span>Pusat Kontrol & CRUD Super Admin</span>
+        </button>
+      </div>
+
+      {activeSettingsTab === 'superadmin' ? (
+        <SuperAdminView />
+      ) : (
+        <form onSubmit={handleSave} className="space-y-6">
+        {/* Section 0: Mode Tema (Dark / Light) */}
+        <div className="bg-white p-6 rounded-2xl border border-[#e2e1f2] shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[#e2e1f2]">
+            <h3 className="text-base font-bold text-[#30323e] flex items-center gap-2">
+              <Sun className="w-5 h-5 text-amber-500" />
+              <span>Tema Tampilan Aplikasi (Mode Gelap / Terang)</span>
+            </h3>
+            <span className="text-xs font-bold text-[#684cb6] bg-purple-50 dark:bg-purple-950/40 px-2.5 py-1 rounded-full border border-purple-200">
+              Aktif: {theme === 'dark' ? 'Mode Gelap (Dark)' : 'Mode Terang (Light)'}
+            </span>
+          </div>
+
+          <p className="text-xs text-[#5d5e6c]">
+            Sesuaikan kenyamanan visual Anda saat melayani transaksi kasir di lingkungan terang maupun minim cahaya.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+            {/* Light Mode Option */}
+            <div
+              onClick={() => setTheme('light')}
+              className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
+                theme === 'light'
+                  ? 'border-[#684cb6] bg-[#fbf8ff] shadow-md ring-2 ring-[#684cb6]/20'
+                  : 'border-[#e2e1f2] hover:bg-slate-50 opacity-75 hover:opacity-100'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
+                    <Sun className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-[#1e1b4b]">Mode Terang (Light)</h4>
+                    <p className="text-[11px] text-[#5d5e6c]">Latar cerah, kontras tinggi & tajam</p>
+                  </div>
+                </div>
+                {theme === 'light' && (
+                  <span className="w-6 h-6 rounded-full bg-[#684cb6] text-white flex items-center justify-center">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </span>
+                )}
+              </div>
+
+              {/* Mini Preview Box Light */}
+              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1.5 shadow-2xs">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                  <div className="h-2 w-16 bg-slate-200 rounded-full ml-1" />
+                </div>
+                <div className="h-2.5 w-full bg-slate-100 rounded-md" />
+                <div className="h-2.5 w-2/3 bg-purple-100 rounded-md" />
+              </div>
+            </div>
+
+            {/* Dark Mode Option */}
+            <div
+              onClick={() => setTheme('dark')}
+              className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
+                theme === 'dark'
+                  ? 'border-[#684cb6] bg-[#1a1733] shadow-md ring-2 ring-[#684cb6]/20'
+                  : 'border-[#e2e1f2] hover:bg-slate-50 opacity-75 hover:opacity-100'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-purple-900/60 text-purple-300 flex items-center justify-center font-bold">
+                    <Moon className="w-5 h-5 text-[#8b6de6]" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-[#1e1b4b]">Mode Gelap (Dark)</h4>
+                    <p className="text-[11px] text-[#5d5e6c]">Elegan, ramah mata & hemat daya</p>
+                  </div>
+                </div>
+                {theme === 'dark' && (
+                  <span className="w-6 h-6 rounded-full bg-[#684cb6] text-white flex items-center justify-center">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </span>
+                )}
+              </div>
+
+              {/* Mini Preview Box Dark */}
+              <div className="p-3 bg-[#0f0d1d] rounded-xl border border-purple-900/40 space-y-1.5 shadow-2xs">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <div className="h-2 w-16 bg-purple-900/60 rounded-full ml-1" />
+                </div>
+                <div className="h-2.5 w-full bg-[#1e1b38] rounded-md" />
+                <div className="h-2.5 w-2/3 bg-purple-800/50 rounded-md" />
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Section 1: Profil Toko */}
         <div className="bg-white p-6 rounded-2xl border border-[#e2e1f2] shadow-xs space-y-4">
           <h3 className="text-base font-bold text-[#30323e] flex items-center gap-2 pb-3 border-b border-[#e2e1f2]">
@@ -190,10 +330,20 @@ export const SettingsView: React.FC = () => {
 
         {/* Section 3: Daftar Petugas Kasir */}
         <div className="bg-white p-6 rounded-2xl border border-[#e2e1f2] shadow-xs space-y-4">
-          <h3 className="text-base font-bold text-[#30323e] flex items-center gap-2 pb-3 border-b border-[#e2e1f2]">
-            <Users className="w-5 h-5 text-[#684cb6]" />
-            <span>Petugas Kasir & Pengguna Aktif</span>
-          </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#e2e1f2] gap-2">
+            <h3 className="text-base font-bold text-[#30323e] flex items-center gap-2">
+              <Users className="w-5 h-5 text-[#684cb6]" />
+              <span>Petugas Kasir & Pengguna Aktif</span>
+            </h3>
+            <button
+              type="button"
+              onClick={() => setActiveSettingsTab('superadmin')}
+              className="px-3.5 py-1.5 bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs w-fit"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />
+              <span>Buka Pusat Kontrol Super Admin (CRUD)</span>
+            </button>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {cashiers.map((c) => (
@@ -389,6 +539,7 @@ export const SettingsView: React.FC = () => {
           </button>
         </div>
       </form>
+      )}
     </div>
   );
 };

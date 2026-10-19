@@ -16,15 +16,16 @@ import { HistoryReportView } from './components/HistoryReportView';
 import { SettingsView } from './components/SettingsView';
 import { CheckoutSuccessModal } from './components/CheckoutSuccessModal';
 import { OpenRegisterModal } from './components/OpenRegisterModal';
+import { PrinterDetectionModal } from './components/PrinterDetectionModal';
 import { AuthView } from './components/AuthView';
 import { MemberLandingView } from './components/MemberLandingView';
 import { LandingPage } from './components/LandingPage';
 import { Toast } from './components/Toast';
+import { SuperAdminView } from './components/SuperAdminView';
 
 const MainLayout: React.FC = () => {
-  const { activeTab } = usePos();
+  const { activeTab, showOpenRegisterModal, setShowOpenRegisterModal } = usePos();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [openRegisterModal, setOpenRegisterModal] = useState(false);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#fbf8ff] text-[#30323e] font-sans antialiased">
@@ -32,7 +33,7 @@ const MainLayout: React.FC = () => {
       <Sidebar
         isMobileOpen={mobileMenuOpen}
         onCloseMobile={() => setMobileMenuOpen(false)}
-        onOpenRegisterModal={() => setOpenRegisterModal(true)}
+        onOpenRegisterModal={() => setShowOpenRegisterModal(true)}
       />
 
       {/* Main Content Area */}
@@ -44,6 +45,7 @@ const MainLayout: React.FC = () => {
         <main className={`flex-1 min-w-0 ${activeTab === 'kasir' ? 'overflow-y-auto p-0' : 'overflow-y-auto p-4 md:p-8'}`}>
           {activeTab === 'dashboard' && <DashboardView />}
           {activeTab === 'kasir' && <PosView />}
+          {activeTab === 'superadmin' && <SuperAdminView />}
           {activeTab === 'produk' && <ProductsView />}
           {activeTab === 'kategori' && <CategoriesView />}
           {activeTab === 'stok' && <StockView />}
@@ -56,9 +58,10 @@ const MainLayout: React.FC = () => {
       {/* Modals */}
       <CheckoutSuccessModal />
       <OpenRegisterModal
-        isOpen={openRegisterModal}
-        onClose={() => setOpenRegisterModal(false)}
+        isOpen={showOpenRegisterModal}
+        onClose={() => setShowOpenRegisterModal(false)}
       />
+      <PrinterDetectionModal />
     </div>
   );
 };

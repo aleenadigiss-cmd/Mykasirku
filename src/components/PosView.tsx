@@ -26,6 +26,9 @@ import {
   SlidersHorizontal,
   PackageX,
   Crown,
+  Unlock,
+  Lock,
+  Store,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { usePos } from '../context/PosContext';
@@ -57,6 +60,10 @@ export const PosView: React.FC = () => {
     activePosMember,
     setActivePosMember,
     findMember,
+    isRegisterOpen,
+    registerStartingCash,
+    setShowOpenRegisterModal,
+    showToast,
   } = usePos();
 
   // Filters & Payment states
@@ -270,8 +277,13 @@ export const PosView: React.FC = () => {
   // Handle Pay Action
   const handlePay = () => {
     if (cart.length === 0) return;
+    if (!isRegisterOpen) {
+      showToast('Sesi kasir sedang tutup! Harap buka sesi kasir terlebih dahulu.', 'error');
+      setShowOpenRegisterModal(true);
+      return;
+    }
     if (isCashInsufficient) {
-      alert('Jumlah uang yang dibayarkan kurang dari total belanja.');
+      showToast('Jumlah uang yang dibayarkan kurang dari total belanja.', 'error');
       return;
     }
 
@@ -413,6 +425,45 @@ export const PosView: React.FC = () => {
           )}
         </button>
       </div>
+
+      {/* Cashier Register Status Notice Banner */}
+      {!isRegisterOpen ? (
+        <div className="bg-amber-500/15 border-b border-amber-300 dark:border-amber-800 px-4 py-2.5 flex items-center justify-between text-xs text-amber-950 dark:text-amber-300 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+            <span className="font-extrabold">Sesi Kasir Sedang Tutup.</span>
+            <span className="hidden sm:inline text-amber-900/80 dark:text-amber-400">
+              Buka sesi kasir dan tentukan uang modal awal untuk mulai melayani transaksi penjualan.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowOpenRegisterModal(true)}
+            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5 shrink-0 transition-all"
+          >
+            <Unlock className="w-3.5 h-3.5" />
+            <span>Buka Kasir Sekarang</span>
+          </button>
+        </div>
+      ) : (
+        <div className="bg-emerald-500/10 border-b border-emerald-300/60 dark:border-emerald-800/40 px-4 py-2 flex items-center justify-between text-xs text-emerald-950 dark:text-emerald-300 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="font-bold">Sesi Kasir Aktif</span>
+            <span className="hidden sm:inline text-emerald-800/80 dark:text-emerald-400">
+              • Modal Awal: <strong>{formatRupiah(registerStartingCash)}</strong>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowOpenRegisterModal(true)}
+            className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 hover:underline cursor-pointer flex items-center gap-1"
+          >
+            <Lock className="w-3 h-3 text-emerald-600" />
+            <span>Rekap / Tutup Shift Kasir</span>
+          </button>
+        </div>
+      )}
 
       {/* Main Dual Area Container */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden relative">
@@ -1143,17 +1194,28 @@ export const PosView: React.FC = () => {
                 </div>
               )}
 
-              {/* Pay Button (Emerald Green #059669) */}
-              <button
-                id="btn-bayar-sekarang"
-                type="button"
-                disabled={cart.length === 0 || isCashInsufficient}
-                onClick={handlePay}
-                className="w-full mt-1 bg-[#059669] hover:bg-[#047857] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Receipt className="w-5 h-5" />
-                <span>PROSES PEMBAYARAN</span>
-              </button>
+              {/* Pay Button */}
+              {!isRegisterOpen ? (
+                <button
+                  type="button"
+                  onClick={() => setShowOpenRegisterModal(true)}
+                  className="w-full mt-1 bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-white font-extrabold text-sm sm:text-base py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Unlock className="w-5 h-5" />
+                  <span>BUKA SESI KASIR UNTUK BAYAR</span>
+                </button>
+              ) : (
+                <button
+                  id="btn-bayar-sekarang"
+                  type="button"
+                  disabled={cart.length === 0 || isCashInsufficient}
+                  onClick={handlePay}
+                  className="w-full mt-1 bg-[#059669] hover:bg-[#047857] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Receipt className="w-5 h-5" />
+                  <span>PROSES PEMBAYARAN</span>
+                </button>
+              )}
             </div>
           </section>
         )}

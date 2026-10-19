@@ -1,1 +1,103 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Theme transitions */
+html, body {
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+}
+
+/* In dark mode, ensure root and common utility colors adapt seamlessly */
+.dark body {
+  background-color: #0c0a1a !important;
+  color: #f3f1ff !important;
+}
+
+.dark .bg-\[\#fbf8ff\] {
+  background-color: #0c0a1a !important;
+}
+
+.dark .bg-white {
+  background-color: #17152b !important;
+}
+
+.dark .bg-\[\#f8f7fd\],
+.dark .bg-\[\#f4f2fe\],
+.dark .bg-\[\#f8f7ff\],
+.dark .bg-slate-50,
+.dark .bg-slate-100 {
+  background-color: #211e3b !important;
+}
+
+.dark .border-\[\#e2e1f2\],
+.dark .border-slate-100 {
+  border-color: #2f2a52 !important;
+}
+
+.dark .border-slate-200 {
+  border-color: #383261 !important;
+}
+
+.dark .text-\[\#30323e\],
+.dark .text-\[\#1e1b4b\] {
+  color: #f5f3ff !important;
+}
+
+.dark .text-\[\#5d5e6c\],
+.dark .text-slate-500,
+.dark .text-slate-600 {
+  color: #aba6d4 !important;
+}
+
+.dark .text-slate-400 {
+  color: #8b85b8 !important;
+}
+
+.dark code {
+  background-color: #262147 !important;
+  border-color: #3d3570 !important;
+  color: #d8b4fe !important;
+}
+
+.dark ::placeholder {
+  color: #756e9e !important;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  background-color: #1d1a36 !important;
+  border-color: #383261 !important;
+  color: #f5f3ff !important;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]):focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #8b6de6 !important;
+}
+
+.dark .hover\:bg-\[\#f4f2fe\]:hover,
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-100:hover {
+  background-color: #262244 !important;
+}
+
+.dark .shadow-xs,
+.dark .shadow-sm,
+.dark .shadow-2xs {
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* Custom dark scrollbars */
+.dark ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #393361;
+  border-radius: 4px;
+}
+.dark ::-webkit-scrollbar-track {
+  background: #121021;
+}

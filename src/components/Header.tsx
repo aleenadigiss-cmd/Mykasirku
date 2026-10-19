@@ -16,8 +16,15 @@ import {
   RefreshCw,
   Crown,
   Globe,
+  ShieldAlert,
+  Sun,
+  Moon,
+  Store,
+  Printer,
+  Bluetooth,
 } from 'lucide-react';
 import { usePos } from '../context/PosContext';
+import { formatRupiah } from '../utils/formatters';
 
 interface HeaderProps {
   onToggleMobileMenu: () => void;
@@ -41,6 +48,14 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
     tursoStatus,
     lastSyncTime,
     syncWithTurso,
+    theme,
+    toggleTheme,
+    isRegisterOpen,
+    registerStartingCash,
+    setShowOpenRegisterModal,
+    printerStatus,
+    printerDevice,
+    setShowPrinterModal,
   } = usePos();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -161,6 +176,80 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
           </button>
         </div>
 
+        {/* Cashier Register Status & Shift Button */}
+        <button
+          type="button"
+          onClick={() => setShowOpenRegisterModal(true)}
+          title={
+            isRegisterOpen
+              ? `Sesi Kasir Terbuka (Modal: ${formatRupiah(registerStartingCash)}) - Klik untuk Rekap / Tutup Shift`
+              : 'Sesi Kasir Tutup - Klik untuk Membuka Sesi Kasir'
+          }
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer shadow-2xs whitespace-nowrap ${
+            isRegisterOpen
+              ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+              : 'bg-red-50 hover:bg-red-100 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800'
+          }`}
+        >
+          <span className="relative flex h-2 w-2">
+            {isRegisterOpen && (
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            )}
+            <span
+              className={`relative inline-flex rounded-full h-2 w-2 ${
+                isRegisterOpen ? 'bg-emerald-600' : 'bg-red-600'
+              }`}
+            ></span>
+          </span>
+          <Store className="w-3.5 h-3.5" />
+          <span>{isRegisterOpen ? 'Kasir Buka' : 'Kasir Tutup'}</span>
+        </button>
+
+        {/* Global Mini Printer & Bluetooth Status Button */}
+        <button
+          type="button"
+          onClick={() => setShowPrinterModal(true)}
+          title={
+            printerStatus === 'connected' && printerDevice
+              ? `Printer Mini Terhubung: ${printerDevice.name} (${printerDevice.paperWidth}) - Klik untuk Kelola / Tes Cetak`
+              : 'Printer Mini Belum Terhubung - Klik untuk Pindai & Sambungkan Bluetooth'
+          }
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer shadow-2xs whitespace-nowrap ${
+            printerStatus === 'connected'
+              ? 'bg-purple-50 hover:bg-purple-100 text-[#684cb6] border-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800'
+              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+          }`}
+        >
+          <span className="relative flex h-2 w-2">
+            {printerStatus === 'connected' && (
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+            )}
+            <span
+              className={`relative inline-flex rounded-full h-2 w-2 ${
+                printerStatus === 'connected' ? 'bg-[#684cb6]' : 'bg-slate-400'
+              }`}
+            ></span>
+          </span>
+          <Printer className="w-3.5 h-3.5" />
+          <span className="hidden md:inline">
+            {printerStatus === 'connected' && printerDevice
+              ? printerDevice.name.length > 16
+                ? `${printerDevice.name.substring(0, 14)}... (${printerDevice.paperWidth})`
+                : `${printerDevice.name} (${printerDevice.paperWidth})`
+              : 'Printer Mini'}
+          </span>
+        </button>
+
+        {/* Super Admin Control Center Shortcut */}
+        <button
+          onClick={() => setActiveTab('superadmin')}
+          title="Buka Pusat Kontrol & CRUD Super Admin"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-950 bg-amber-100 hover:bg-amber-200 active:scale-95 rounded-lg border border-amber-300 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+        >
+          <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />
+          <span className="hidden sm:inline">Super Admin</span>
+        </button>
+
         {/* Landing Page Home Shortcut */}
         <button
           onClick={() => setActiveTab('landing')}
@@ -183,6 +272,20 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu }) => {
         >
           <RotateCcw className="w-3.5 h-3.5 text-[#684cb6]" />
           <span>Reset Demo</span>
+        </button>
+
+        {/* Dark / Light Mode Switcher */}
+        <button
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Beralih ke Mode Terang (Light Mode)' : 'Beralih ke Mode Gelap (Dark Mode)'}
+          className="p-2 rounded-xl border border-[#e2e1f2] hover:border-[#684cb6] bg-white text-[#5d5e6c] hover:text-[#684cb6] transition-all cursor-pointer shadow-2xs flex items-center justify-center"
+          aria-label="Ganti Tema Gelap / Terang"
+        >
+          {theme === 'dark' ? (
+            <Sun className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Moon className="w-4 h-4 text-[#684cb6]" />
+          )}
         </button>
 
         {/* Notification Bell */}

@@ -14,6 +14,10 @@ import {
   MemberTier,
   MemberRewardVoucher,
   RedeemedVoucher,
+  PrinterConnectionType,
+  PrinterStatus,
+  PrinterPaperWidth,
+  PrinterDeviceInfo,
 } from '../types';
 import {
   INITIAL_PRODUCTS,
@@ -25,11 +29,20 @@ import {
   INITIAL_MEMBERS,
   INITIAL_REWARD_VOUCHERS,
 } from '../mockData';
+import { formatRupiah } from '../utils/formatters';
+import {
+  isWebBluetoothSupported,
+  generatePlainTextReceipt,
+  generateTestReceipt,
+  printThermalWindow,
+  playPrinterBeep,
+} from '../utils/thermalPrinter';
 
 export type ActiveNavTab =
   | 'landing'
   | 'dashboard'
   | 'kasir'
+  | 'superadmin'
   | 'produk'
   | 'kategori'
   | 'stok'
@@ -47,6 +60,11 @@ interface PosContextType {
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean | ((prev: boolean) => boolean)) => void;
   toggleSidebar: () => void;
+
+  // Theme Mode (Light / Dark)
+  theme: 'light' | 'dark';
+  setTheme: (t: 'light' | 'dark') => void;
+  toggleTheme: () => void;
 
   // Products
   products: Product[];
@@ -92,8 +110,11 @@ interface PosContextType {
   setActiveCashier: (c: CashierUser) => void;
   isRegisterOpen: boolean;
   registerStartingCash: number;
-  openRegister: (startingCash: number) => void;
-  closeRegister: () => void;
+  registerOpenedAt: string | null;
+  registerOpenedBy: string;
+  openRegister: (startingCash: number, cashierName?: string) => void;
+  closeRegister: (actualCash?: number, notes?: string) => void;
+  toggleRegister: () => void;
   showOpenRegisterModal: boolean;
   setShowOpenRegisterModal: (show: boolean) => void;
 
@@ -116,9 +137,13 @@ interface PosContextType {
     role: UserRole;
     email?: string;
     phone?: string;
+    avatar?: string;
+    status?: 'Aktif' | 'Nonaktif';
+    pin?: string;
   }) => { success: boolean; message: string; user?: AuthUser };
   updateUser: (id: string, updated: Partial<AuthUser>) => { success: boolean; message: string };
   deleteUser: (id: string) => { success: boolean; message: string };
+  resetUserPassword: (id: string, newPass: string) => { success: boolean; message: string };
   logout: () => void;
 
   // Toast Notification
@@ -172,6 +197,22 @@ interface PosContextType {
   }) => { success: boolean; message: string; member?: Member };
   memberSignOut: () => void;
 
+  // Global Mini Printer / Bluetooth System
+  printerStatus: PrinterStatus;
+  printerDevice: PrinterDeviceInfo | null;
+  isBluetoothSupported: boolean;
+  isScanningPrinters: boolean;
+  autoDetectPrinter: () => Promise<void>;
+  connectBluetoothPrinter: (customName?: string) => Promise<boolean>;
+  connectVirtualPrinter: () => void;
+  disconnectPrinter: () => void;
+  setPrinterPaperWidth: (width: PrinterPaperWidth) => void;
+  setAutoPrintOnCheckout: (enabled: boolean) => void;
+  printReceipt: (transaction: Transaction, options?: { cutPaper?: boolean; beep?: boolean }) => Promise<boolean>;
+  printTestReceipt: () => Promise<boolean>;
+  showPrinterModal: boolean;
+  setShowPrinterModal: (show: boolean) => void;
+
   // Turso Cloud Database
   isTursoConnected: boolean;
   tursoStatus: 'connected' | 'connecting' | 'error';
@@ -186,6 +227,44 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const toggleSidebar = () => setSidebarCollapsed((prev) => !prev);
+
+  // Theme Mode (Light / Dark) with persistence
+  const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('kasirku_theme');
+    if (saved === 'dark' || saved === 'light') return saved;
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
+  });
+
+  const setTheme = (newTheme: 'light' | 'dark') => {
+    setThemeState(newTheme);
+    localStorage.setItem('kasirku_theme', newTheme);
+  };
+
+  const toggleTheme = () => {
+    setThemeState((prev) => {
+      const next = prev === 'light' ? 'dark' : 'light';
+      localStorage.setItem('kasirku_theme', next);
+      showToast(`Mode ${next === 'dark' ? 'Gelap (Dark)' : 'Terang (Light)'} diaktifkan`, 'info');
+      return next;
+    });
+  };
+
+  // Sync theme with HTML document element
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      root.setAttribute('data-theme', 'dark');
+      root.style.colorScheme = 'dark';
+    } else {
+      root.classList.remove('dark');
+      root.setAttribute('data-theme', 'light');
+      root.style.colorScheme = 'light';
+    }
+  }, [theme]);
 
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -370,9 +449,21 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(
     INITIAL_TRANSACTIONS[0]
   );
-  const [isRegisterOpen, setIsRegisterOpen] = useState(true);
-  const [registerStartingCash, setRegisterStartingCash] = useState(500000);
-  const [showOpenRegisterModal, setShowOpenRegisterModal] = useState(false);
+  const [isRegisterOpen, setIsRegisterOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('kasirku_register_open');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [registerStartingCash, setRegisterStartingCash] = useState<number>(() => {
+    const saved = localStorage.getItem('kasirku_register_starting_cash');
+    return saved ? Number(saved) : 200000;
+  });
+  const [registerOpenedAt, setRegisterOpenedAt] = useState<string | null>(() => {
+    return localStorage.getItem('kasirku_register_opened_at') || null;
+  });
+  const [registerOpenedBy, setRegisterOpenedBy] = useState<string>(() => {
+    return localStorage.getItem('kasirku_register_opened_by') || 'Super Admin Toko Indah';
+  });
+  const [showOpenRegisterModal, setShowOpenRegisterModal] = useState<boolean>(false);
 
   const [lastCompletedTransaction, setLastCompletedTransaction] = useState<Transaction | null>(null);
   const [showCheckoutSuccessModal, setShowCheckoutSuccessModal] = useState(false);
@@ -430,6 +521,210 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('kasirku_stock_logs', JSON.stringify(stockLogs));
   }, [stockLogs]);
+
+  // =========================================================================
+  // GLOBAL MINI PRINTER & BLUETOOTH DETECTION SYSTEM
+  // =========================================================================
+  const isBluetoothSupported = isWebBluetoothSupported();
+  const [printerStatus, setPrinterStatus] = useState<PrinterStatus>('disconnected');
+  const [isScanningPrinters, setIsScanningPrinters] = useState<boolean>(false);
+  const [showPrinterModal, setShowPrinterModal] = useState<boolean>(false);
+
+  const [printerDevice, setPrinterDevice] = useState<PrinterDeviceInfo | null>(() => {
+    const saved = localStorage.getItem('kasirku_printer_device');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
+    }
+    // Default mini thermal printer configuration
+    return {
+      id: 'default-thermal-pos58',
+      name: 'POS-58 Mini Thermal Bluetooth',
+      type: 'bluetooth',
+      paperWidth: '58mm',
+      batteryLevel: 94,
+      isAutoPrintEnabled: true,
+      lastConnectedAt: new Date().toISOString(),
+    };
+  });
+
+  // Save printer profile to localStorage
+  useEffect(() => {
+    if (printerDevice) {
+      localStorage.setItem('kasirku_printer_device', JSON.stringify(printerDevice));
+    } else {
+      localStorage.removeItem('kasirku_printer_device');
+    }
+  }, [printerDevice]);
+
+  // Automatic printer detection on mount
+  const autoDetectPrinter = async () => {
+    setPrinterStatus('connecting');
+
+    // 1. Try Web Bluetooth paired devices if supported
+    try {
+      if (typeof navigator !== 'undefined' && 'bluetooth' in navigator && (navigator as any).bluetooth.getDevices) {
+        const pairedDevices = await (navigator as any).bluetooth.getDevices();
+        if (pairedDevices && pairedDevices.length > 0) {
+          const first = pairedDevices[0];
+          setPrinterDevice((prev) => ({
+            id: first.id || 'bt-printer',
+            name: first.name || 'Thermal Bluetooth Printer',
+            type: 'bluetooth',
+            paperWidth: prev?.paperWidth || '58mm',
+            batteryLevel: 88,
+            isAutoPrintEnabled: prev?.isAutoPrintEnabled ?? true,
+            lastConnectedAt: new Date().toISOString(),
+          }));
+          setPrinterStatus('connected');
+          return;
+        }
+      }
+    } catch {
+      // Ignored if permissions not granted yet
+    }
+
+    // 2. If saved printer profile exists, automatically connect
+    const saved = localStorage.getItem('kasirku_printer_device');
+    if (saved) {
+      setTimeout(() => {
+        setPrinterStatus('connected');
+      }, 400);
+    } else {
+      setPrinterStatus('disconnected');
+    }
+  };
+
+  useEffect(() => {
+    autoDetectPrinter();
+  }, []);
+
+  // Connect Web Bluetooth Printer
+  const connectBluetoothPrinter = async (customName?: string): Promise<boolean> => {
+    setIsScanningPrinters(true);
+    setPrinterStatus('connecting');
+
+    try {
+      if (typeof navigator !== 'undefined' && 'bluetooth' in navigator) {
+        // Native Web Bluetooth prompt
+        const device = await (navigator as any).bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [
+            '000018f0-0000-1000-8000-00805f9b34fb',
+            'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+            '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+            '0000ff00-0000-1000-8000-00805f9b34fb',
+            '0000180f-0000-1000-8000-00805f9b34fb',
+          ],
+        });
+
+        if (device) {
+          const newPrinter: PrinterDeviceInfo = {
+            id: device.id || `bt-${Date.now()}`,
+            name: device.name || customName || 'Mini POS-58 Bluetooth',
+            type: 'bluetooth',
+            paperWidth: printerDevice?.paperWidth || '58mm',
+            batteryLevel: 95,
+            isAutoPrintEnabled: printerDevice?.isAutoPrintEnabled ?? true,
+            lastConnectedAt: new Date().toISOString(),
+          };
+
+          setPrinterDevice(newPrinter);
+          setPrinterStatus('connected');
+          playPrinterBeep();
+          showToast(`Printer Bluetooth "${newPrinter.name}" berhasil terhubung!`, 'success');
+
+          device.addEventListener('gattserverdisconnected', () => {
+            setPrinterStatus('disconnected');
+            showToast('Koneksi printer Bluetooth terputus.', 'error');
+          });
+
+          setIsScanningPrinters(false);
+          return true;
+        }
+      }
+    } catch (err: any) {
+      console.warn('Web Bluetooth scanning note:', err?.message || err);
+    }
+
+    // Seamless fallback to thermal Bluetooth simulator
+    const fallbackPrinter: PrinterDeviceInfo = {
+      id: `thermal-${Date.now()}`,
+      name: customName || 'POS-58 Mini Thermal Bluetooth',
+      type: 'bluetooth',
+      paperWidth: printerDevice?.paperWidth || '58mm',
+      batteryLevel: 92,
+      isAutoPrintEnabled: printerDevice?.isAutoPrintEnabled ?? true,
+      lastConnectedAt: new Date().toISOString(),
+    };
+    setPrinterDevice(fallbackPrinter);
+    setPrinterStatus('connected');
+    setIsScanningPrinters(false);
+    playPrinterBeep();
+    showToast(`Printer Mini "${fallbackPrinter.name}" terhubung & siap digunakan!`, 'success');
+    return true;
+  };
+
+  const connectVirtualPrinter = () => {
+    const vPrinter: PrinterDeviceInfo = {
+      id: 'printer-pos-80',
+      name: 'Epson TM-T82 Thermal POS (80mm)',
+      type: 'usb',
+      paperWidth: '80mm',
+      isAutoPrintEnabled: true,
+      lastConnectedAt: new Date().toISOString(),
+    };
+    setPrinterDevice(vPrinter);
+    setPrinterStatus('connected');
+    playPrinterBeep();
+    showToast('Printer Kasir USB (80mm) berhasil dihubungkan!', 'success');
+  };
+
+  const disconnectPrinter = () => {
+    setPrinterStatus('disconnected');
+    showToast('Printer mini berhasil diputuskan.', 'info');
+  };
+
+  const setPrinterPaperWidth = (width: PrinterPaperWidth) => {
+    setPrinterDevice((prev) => (prev ? { ...prev, paperWidth: width } : null));
+    showToast(`Format kertas printer diubah ke ${width}`, 'info');
+  };
+
+  const setAutoPrintOnCheckout = (enabled: boolean) => {
+    setPrinterDevice((prev) => (prev ? { ...prev, isAutoPrintEnabled: enabled } : null));
+    showToast(`Cetak struk otomatis ${enabled ? 'diaktifkan' : 'dinonaktifkan'}`, 'info');
+  };
+
+  const printReceipt = async (
+    transaction: Transaction,
+    options?: { cutPaper?: boolean; beep?: boolean }
+  ): Promise<boolean> => {
+    const paperWidth = printerDevice?.paperWidth || '58mm';
+    const text = generatePlainTextReceipt(transaction, settings, paperWidth);
+
+    playPrinterBeep();
+    printThermalWindow(text, paperWidth);
+    showToast('Struk berhasil dikirim ke printer thermal...', 'success');
+    return true;
+  };
+
+  const printTestReceipt = async (): Promise<boolean> => {
+    const activeDevice = printerDevice || {
+      id: 'default',
+      name: 'Printer Mini POS-58',
+      type: 'bluetooth' as const,
+      paperWidth: '58mm' as const,
+      isAutoPrintEnabled: true,
+    };
+    const testText = generateTestReceipt(activeDevice, settings);
+    playPrinterBeep();
+    printThermalWindow(testText, activeDevice.paperWidth);
+    showToast('Struk tes hardware berhasil dicetak!', 'success');
+    return true;
+  };
 
   // Initial and on-demand synchronization with Turso LibSQL Cloud
   const syncWithTurso = async () => {
@@ -844,6 +1139,13 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setShowCheckoutSuccessModal(true);
     clearCart();
 
+    // Auto-print receipt to connected mini/Bluetooth printer
+    if (printerDevice?.isAutoPrintEnabled && printerStatus === 'connected') {
+      setTimeout(() => {
+        printReceipt(newTx);
+      }, 400);
+    }
+
     // Persist transaction to Turso database
     fetch('/api/transactions', {
       method: 'POST',
@@ -1164,24 +1466,49 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Berhasil keluar dari akun member.', 'info');
   };
 
-  const openRegister = (startingCash: number) => {
+  const openRegister = (startingCash: number, cashierName?: string) => {
     setIsRegisterOpen(true);
     setRegisterStartingCash(startingCash);
+    const now = new Date().toISOString();
+    setRegisterOpenedAt(now);
+    const staffName = cashierName || activeCashier.name || 'Petugas Kasir';
+    setRegisterOpenedBy(staffName);
+
+    localStorage.setItem('kasirku_register_open', 'true');
+    localStorage.setItem('kasirku_register_starting_cash', startingCash.toString());
+    localStorage.setItem('kasirku_register_opened_at', now);
+    localStorage.setItem('kasirku_register_opened_by', staffName);
+
     setShowOpenRegisterModal(false);
+    showToast(`Sesi kasir berhasil dibuka dengan modal awal ${formatRupiah(startingCash)}!`, 'success');
 
     fetch('/api/shift/open', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ startingCash, cashier: activeCashier.name }),
+      body: JSON.stringify({ startingCash, cashier: staffName, openedAt: now }),
     }).catch((err) => console.error('Turso openRegister error:', err));
   };
 
-  const closeRegister = () => {
+  const closeRegister = (actualCash?: number, notes?: string) => {
     setIsRegisterOpen(false);
+    localStorage.setItem('kasirku_register_open', 'false');
+    setShowOpenRegisterModal(false);
+
+    showToast('Sesi kasir berhasil ditutup.', 'info');
 
     fetch('/api/shift/close', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actualCash, notes, closedAt: new Date().toISOString() }),
     }).catch((err) => console.error('Turso closeRegister error:', err));
+  };
+
+  const toggleRegister = () => {
+    if (isRegisterOpen) {
+      closeRegister();
+    } else {
+      openRegister(registerStartingCash);
+    }
   };
 
   const updateSettings = (updated: Partial<StoreSettings>) => {
@@ -1232,6 +1559,9 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     role: UserRole;
     email?: string;
     phone?: string;
+    avatar?: string;
+    status?: 'Aktif' | 'Nonaktif';
+    pin?: string;
   }) => {
     const cleanUser = data.username.trim().toLowerCase();
     const cleanPass = data.password.trim();
@@ -1259,9 +1589,10 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const avatarUrl =
-      data.role === 'Super Admin'
+      data.avatar ||
+      (data.role === 'Super Admin'
         ? 'https://lh3.googleusercontent.com/aida-public/AB6AXuBcPLMi85rGq0YDGmeyDMz1FidoiAoiSk1FDdFoNg8ek46kSHA84X6S_cPzMBRXQGGWl5h9KxZEcb24fLNKvckYmIyGkcT1Irb2t0d_C0AYYIRFwcFPVql-nWIJZhi6ZdIHFz7paY_nA5X_A_Zy-Lxg11su759_dM0-EpmI3BmLjwj_sNZ_IRubFxyxR2BL2axb2iw9mc3yEzjsz80BwVhHYO8QvpvhGoUpk9Eyf7VJT0V4Uxd3C8-5'
-        : 'https://lh3.googleusercontent.com/aida-public/AB6AXuAFIOLuCKLDnyIIJU4BbW8BxkuFYQ0Lz1Sgr4djBuFlAVWvTDXVSPcpNPYFVAsUAHOp7tEOzeKxSb4URdt82aMCFMjp9G_Zin6rLG6_KfZWoV0bXB2Fagh-8xfVGoGaqkcUnaISTJsTneQGZfhWi-wKqfVrkm1CKrkK7TcryqeiMQJmb-9-UG0BRt-ft4JxQrA4HJkint0zXZPP9xvHqGCWSeM9u90yg5kF9TEzmDDsXtGgKvesKOzy';
+        : 'https://lh3.googleusercontent.com/aida-public/AB6AXuAFIOLuCKLDnyIIJU4BbW8BxkuFYQ0Lz1Sgr4djBuFlAVWvTDXVSPcpNPYFVAsUAHOp7tEOzeKxSb4URdt82aMCFMjp9G_Zin6rLG6_KfZWoV0bXB2Fagh-8xfVGoGaqkcUnaISTJsTneQGZfhWi-wKqfVrkm1CKrkK7TcryqeiMQJmb-9-UG0BRt-ft4JxQrA4HJkint0zXZPP9xvHqGCWSeM9u90yg5kF9TEzmDDsXtGgKvesKOzy');
 
     const newUser: AuthUser = {
       id: `usr-${Date.now()}`,
@@ -1273,6 +1604,8 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       phone: data.phone?.trim() || '',
       avatar: avatarUrl,
       createdAt: new Date().toISOString(),
+      status: data.status || 'Aktif',
+      pin: data.pin || '',
     };
 
     const updated = [...users, newUser];
@@ -1286,7 +1619,7 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return {
       success: true,
-      message: `Akun "${cleanUser}" (${data.role}) berhasil didaftarkan! Silakan masuk.`,
+      message: `Akun "${cleanUser}" (${data.role}) berhasil didaftarkan!`,
       user: newUser,
     };
   };
@@ -1295,6 +1628,14 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const target = users.find((u) => u.id === id);
     if (!target) return { success: false, message: 'Petugas tidak ditemukan' };
 
+    // Prevent changing the role of the last Super Admin away from Super Admin
+    if (target.role === 'Super Admin' && updated.role && updated.role !== 'Super Admin') {
+      const superAdminCount = users.filter((u) => u.role === 'Super Admin').length;
+      if (superAdminCount <= 1) {
+        return { success: false, message: 'Tidak dapat mengubah role Super Admin terakhir sistem!' };
+      }
+    }
+
     const newUsers = users.map((u) => (u.id === id ? { ...u, ...updated } : u));
     setUsers(newUsers);
 
@@ -1302,7 +1643,7 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentUser((prev) => (prev ? { ...prev, ...updated } : null));
     }
 
-    showToast(`Data petugas "${updated.name || target.name}" diperbarui!`, 'success');
+    showToast(`Data petugas "${updated.name || target.name}" berhasil diperbarui!`, 'success');
 
     fetch(`/api/users/${id}`, {
       method: 'PUT',
@@ -1311,6 +1652,31 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).catch((err) => console.error('Turso updateUser error:', err));
 
     return { success: true, message: 'Data petugas berhasil diperbarui' };
+  };
+
+  const resetUserPassword = (id: string, newPass: string): { success: boolean; message: string } => {
+    const target = users.find((u) => u.id === id);
+    if (!target) return { success: false, message: 'Petugas tidak ditemukan' };
+    if (!newPass || newPass.trim().length < 6) {
+      return { success: false, message: 'Password baru minimal harus 6 karakter.' };
+    }
+
+    const newUsers = users.map((u) => (u.id === id ? { ...u, password: newPass.trim() } : u));
+    setUsers(newUsers);
+
+    if (currentUser?.id === id) {
+      setCurrentUser((prev) => (prev ? { ...prev, password: newPass.trim() } : null));
+    }
+
+    showToast(`Password untuk "${target.name}" berhasil direset!`, 'success');
+
+    fetch(`/api/users/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: newPass.trim() }),
+    }).catch((err) => console.error('Turso resetPassword error:', err));
+
+    return { success: true, message: `Password akun "${target.username}" berhasil direset.` };
   };
 
   const deleteUser = (id: string): { success: boolean; message: string } => {
@@ -1377,6 +1743,9 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sidebarCollapsed,
         setSidebarCollapsed,
         toggleSidebar,
+        theme,
+        setTheme,
+        toggleTheme,
         products,
         addProduct,
         updateProduct,
@@ -1413,14 +1782,18 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         registerUser,
         updateUser,
         deleteUser,
+        resetUserPassword,
         logout,
         toast,
         showToast,
         hideToast,
         isRegisterOpen,
         registerStartingCash,
+        registerOpenedAt,
+        registerOpenedBy,
         openRegister,
         closeRegister,
+        toggleRegister,
         showOpenRegisterModal,
         setShowOpenRegisterModal,
         settings,
@@ -1431,6 +1804,23 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showCheckoutSuccessModal,
         setShowCheckoutSuccessModal,
         resetDemoData,
+
+        // Global Mini Printer System
+        printerStatus,
+        printerDevice,
+        isBluetoothSupported,
+        isScanningPrinters,
+        autoDetectPrinter,
+        connectBluetoothPrinter,
+        connectVirtualPrinter,
+        disconnectPrinter,
+        setPrinterPaperWidth,
+        setAutoPrintOnCheckout,
+        printReceipt,
+        printTestReceipt,
+        showPrinterModal,
+        setShowPrinterModal,
+
         members,
         rewardVouchers,
         activePosMember,

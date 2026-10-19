@@ -51,6 +51,8 @@ import {
   DollarSign,
   Smartphone,
   Laptop,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'motion/react';
@@ -69,6 +71,8 @@ export const LandingPage: React.FC = () => {
     settings,
     members,
     products,
+    theme,
+    toggleTheme,
   } = usePos();
 
   // Navigation & Drawer
@@ -267,6 +271,21 @@ export const LandingPage: React.FC = () => {
 
           {/* Desktop Right Action Group (Sign In / Sign Up / Enter App) */}
           <div className="hidden sm:flex items-center gap-2.5">
+            {/* Theme Toggle Button */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Beralih ke Mode Terang (Light Mode)' : 'Beralih ke Mode Gelap (Dark Mode)'}
+              className="p-2.5 rounded-xl border border-[#e2e1f2] hover:border-[#684cb6] bg-white text-[#5d5e6c] hover:text-[#684cb6] transition-all cursor-pointer shadow-2xs flex items-center justify-center"
+              aria-label="Toggle Theme"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-[#684cb6]" />
+              )}
+            </button>
+
             {isAuthenticated && currentUser ? (
               <div className="flex items-center gap-2">
                 <button
@@ -381,8 +400,22 @@ export const LandingPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* Mobile Auth Buttons */}
+              {/* Mobile Auth Buttons & Theme Toggle */}
               <div className="pt-4 border-t border-[#e2e1f2] flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="w-full py-2.5 px-4 rounded-xl border border-[#e2e1f2] bg-[#fbf8ff] flex items-center justify-between text-xs font-bold text-slate-700 cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-[#684cb6]" />}
+                    <span>{theme === 'dark' ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}</span>
+                  </div>
+                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-purple-100 text-[#684cb6]">
+                    {theme === 'dark' ? 'DARK' : 'LIGHT'}
+                  </span>
+                </button>
+
                 {isAuthenticated && currentUser ? (
                   <button
                     onClick={() => {

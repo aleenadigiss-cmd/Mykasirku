@@ -116,6 +116,9 @@ export interface AuthUser {
   phone?: string;
   avatar: string;
   createdAt?: string;
+  status?: 'Aktif' | 'Nonaktif';
+  pin?: string;
+  lastLogin?: string;
 }
 
 export interface CashierUser {
@@ -149,3 +152,19 @@ export interface StockLog {
   date: string;
   user: string;
 }
+
+export type PrinterConnectionType = 'bluetooth' | 'usb' | 'system' | 'virtual';
+export type PrinterStatus = 'connected' | 'connecting' | 'disconnected' | 'scanning' | 'error';
+export type PrinterPaperWidth = '58mm' | '80mm';
+
+export interface PrinterDeviceInfo {
+  id: string;
+  name: string;
+  type: PrinterConnectionType;
+  paperWidth: PrinterPaperWidth;
+  batteryLevel?: number;
+  isAutoPrintEnabled: boolean;
+  lastConnectedAt?: string;
+  rssi?: number;
+}
+
